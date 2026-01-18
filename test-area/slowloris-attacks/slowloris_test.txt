@@ -1,0 +1,29 @@
+
+to run 
+
+./run_slowloris_test.py
+
+
+It will:
+Start Slowloris against 192.168.42.8:5000
+Sample connections once per second for 120 seconds
+
+Print live stats like:
+t=  0s  open_connections=5
+t=  1s  open_connections=30
+...
+
+
+these patrameters can also be modified :
+
+TARGET_HOST = "192.168.42.8"
+TARGET_PORT = 5000      # 80 for Apache/Nginx
+SOCKETS = 300
+TEST_DURATION = 120     # seconds
+
+
+
+Generate:
+slowloris_YYYY-MM-DD_HH-MM-SS.csv
+slowloris_YYYY-MM-DD_HH-MM-SS.html
+

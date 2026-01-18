@@ -1,0 +1,25 @@
+Slow Headers (H)
+./run_slow_tests.py H
+# or
+python3 run_slow_tests.py H
+
+slowhttptest -H -c 300 -i 10 -r 30 -u http://192.168.42.8:5000/ -p 5 -l 120 -g -o slowheaders_test1
+
+OUTPUT:
+slowheaders_YYYY-MM-DD-HH-MM.html
+slowheaders_YYYY-MM-DD-HH-MM.csv
+
+
+=============================================================
+
+Slow Body (B)
+./run_slow_tests.py B
+# or
+python3 run_slow_tests.py B
+
+
+slowhttptest -B -c 300 -i 10 -r 30 -u http://192.168.42.8:5000/ -p 5 -l 120 -g -o slowbody_test1
+OUTPUT:
+
+slowbody_YYYY-MM-DD-HH-MM.html
+slowbody_YYYY-MM-DD-HH-MM.csv

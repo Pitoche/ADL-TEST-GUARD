@@ -1,0 +1,12 @@
+# Baseline
+locust -f locust_baseline.py --headless -u 1 -r 1 --run-time 2m --print-stats --csv /home/kali/ADL-TEST-GUARD/reports-area/baseline \
+  --html /home/kali/ADL-TEST-GUARD/reports-area/baseline.html
+
+# Light
+locust -f locust_light_attack.py --headless -u 25 -r 5 --run-time 2m --print-stats
+
+# Medium
+locust -f locust_medium_attack.py --headless -u 75 -r 15 --run-time 5m --print-stats
+
+# Full
+locust -f locust_full_attack.py --headless -u 200 -r 40 --run-time 5m --print-stats
