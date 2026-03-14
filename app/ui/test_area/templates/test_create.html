@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ADL-TEST-GUARD | Create Test Run</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121a2b;
+      --panel-2: #172136;
+      --border: #2a3650;
+      --text: #e8edf7;
+      --muted: #a9b4c8;
+      --accent: #4da3ff;
+      --accent-2: #7cc4ff;
+      --success-bg: #153524;
+      --success-bd: #2f8f57;
+      --error-bg: #3a1b22;
+      --error-bd: #b44a63;
+      --warn-bg: #3b3118;
+      --warn-bd: #b69436;
+      --input-bg: #0f1727;
+      --log-bg: #07101d;
+      --shadow: 0 10px 30px rgba(0,0,0,0.25);
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #08111d 0%, #0b1220 100%);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .page {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .page-header {
+      margin-bottom: 20px;
+    }
+
+    .title {
+      margin: 0 0 8px 0;
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .flash-wrap {
+      margin: 18px 0 22px;
+    }
+
+    .flash {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .flash.success {
+      background: var(--success-bg);
+      border-color: var(--success-bd);
+    }
+
+    .flash.error {
+      background: var(--error-bg);
+      border-color: var(--error-bd);
+    }
+
+    .flash.warning {
+      background: var(--warn-bg);
+      border-color: var(--warn-bd);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .panel-title {
+      margin: 0 0 5px 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .panel-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .panel-body {
+      padding: 20px;
+    }
+
+    .section {
+      margin-bottom: 22px;
+      padding-bottom: 10px;
+      border-bottom: 1px dashed rgba(255,255,255,0.08);
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .section-title {
+      margin: 0 0 14px 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent-2);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+
+    .field {
+      margin-bottom: 14px;
+    }
+
+    .field label,
+    .field .field-label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #dce6f7;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.15);
+    }
+
+    .help {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+      margin-top: 6px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      transform: scale(1.1);
+    }
+
+    .checkbox-item label {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      transition: transform 0.05s ease, opacity 0.2s ease;
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #2590ff 0%, #1676d8 100%);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #22314f;
+      color: #e8edf7;
+      border: 1px solid #36507a;
+    }
+
+    .status-box {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--muted);
+      white-space: pre-wrap;
+      font-size: 13px;
+      min-height: 48px;
+    }
+
+    .summary-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
+
+    .summary-title {
+      margin: 0 0 10px 0;
+      font-size: 15px;
+      color: var(--accent-2);
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px 10px;
+      font-size: 13px;
+    }
+
+    .kv div:nth-child(odd) {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .log-box {
+      background: var(--log-bg);
+      border: 1px solid rgba(77, 163, 255, 0.18);
+      border-radius: 12px;
+      min-height: 520px;
+      max-height: 720px;
+      overflow: auto;
+      padding: 14px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #bfe0ff;
+      white-space: pre-wrap;
+    }
+
+    .small-note {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .error-list {
+      margin: 6px 0 0 18px;
+      color: #ffb8c7;
+      font-size: 12px;
+    }
+
+    @media (max-width: 1100px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .log-box {
+        min-height: 320px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .grid-2,
+      .grid-3,
+      .checkbox-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .page {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-header">
+      <h1 class="title">ADL-TEST-GUARD — Testing Area</h1>
+      <p class="subtitle">
+        Create and validate a controlled DoS / DDoS experiment configuration.
+        This page is focused on the testing area only: test selection, target configuration,
+        baseline settings, runner mode, and live run visibility.
+      </p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, msg in messages %}
+            <div class="flash {{ category }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="layout">
+      <!-- LEFT: FORM -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Create Test Run</h2>
+          <p class="panel-subtitle">
+            Select a Test Area, choose a subtype, define the target scope, and validate the configuration before creating a run.
+          </p>
+        </div>
+
+        <div class="panel-body">
+          <form id="test-run-form" method="post" action="{{ url_for('test_area.create_test') }}">
+            {{ form.hidden_tag() }}
+
+            <div class="section">
+              <h3 class="section-title">1. Test Selection</h3>
+
+              <div class="grid-2">
+                <div class="field">
+                  <label for="test_area">{{ form.test_area.label.text }}</label>
+                  {{ form.test_area(id="test_area") }}
+                  {% if form.test_area.errors %}
+                    <ul class="error-list">
+                      {% for err in form.test_area.errors %}<li>{{ err }}</li>{% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+
+                <div class="field">
+                  <label for="test_type">{{ form.test_type.label.text }}</label>
+                  {{ form.test_type(id="test_type") }}
+                  {% if form.test_type.errors %}
+                    <ul class="error-list">
+                      {% for err in form.test_type.errors %}<li>{{ err }}</li>{% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="field">
+                  <label for="level">{{ form.level.label.text }}</label>
+                  {{ form.level(id="level") }}
+                </div>
+
+                <div class="field">
+                  <label for="runner_mode">{{ form.runner_mode.label.text }}</label>
+                  {{ form.runner_mode(id="runner_mode") }}
+                </div>
+              </div>
+
+              <div class="status-box" id="spec-info">
+                Select a Test Area and subtype to see its details.
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">2. Target Configuration</h3>
+
+              <div class="grid-3">
+                <div class="field">
+                  <label for="protocol">{{ form.protocol.label.text }}</label>
+                  {{ form.protocol(id="protocol") }}
+                </div>
+
+                <div class="field">
+                  <label for="host">{{ form.host.label.text }}</label>
+                  {{ form.host(id="host") }}
+                  {% if form.host.errors %}
+                    <ul class="error-list">
+                      {% for err in form.host.errors %}<li>{{ err }}</li>{% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+
+                <div class="field">
+                  <label for="port">{{ form.port.label.text }}</label>
+                  {{ form.port(id="port") }}
+                  {% if form.port.errors %}
+                    <ul class="error-list">
+                      {% for err in form.port.errors %}<li>{{ err }}</li>{% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="endpoints">{{ form.endpoints.label.text }}</label>
+                {{ form.endpoints(id="endpoints") }}
+                <div class="help">
+                  One endpoint per line. Example: <code>/</code>, <code>/login</code>, <code>/api/v1/items</code>
+                </div>
+                {% if form.endpoints.errors %}
+                  <ul class="error-list">
+                    {% for err in form.endpoints.errors %}<li>{{ err }}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">3. Baseline and Execution Policy</h3>
+
+              <div class="grid-2">
+                <div class="field">
+                  <label for="baseline_seconds">{{ form.baseline_seconds.label.text }}</label>
+                  {{ form.baseline_seconds(id="baseline_seconds") }}
+                </div>
+
+                <div class="field">
+                  <label for="duration_seconds">{{ form.duration_seconds.label.text }}</label>
+                  {{ form.duration_seconds(id="duration_seconds") }}
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="escalation_schedule">{{ form.escalation_schedule.label.text }}</label>
+                {{ form.escalation_schedule(id="escalation_schedule") }}
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">4. Common Runner Parameters</h3>
+
+              <div class="grid-3">
+                <div class="field">
+                  <label for="users">{{ form.users.label.text }}</label>
+                  {{ form.users(id="users") }}
+                </div>
+
+                <div class="field">
+                  <label for="spawn_rate">{{ form.spawn_rate.label.text }}</label>
+                  {{ form.spawn_rate(id="spawn_rate") }}
+                </div>
+
+                <div class="field">
+                  <label for="request_timeout">{{ form.request_timeout.label.text }}</label>
+                  {{ form.request_timeout(id="request_timeout") }}
+                </div>
+              </div>
+
+              <div class="grid-3">
+                <div class="field">
+                  <label for="think_time_ms">{{ form.think_time_ms.label.text }}</label>
+                  {{ form.think_time_ms(id="think_time_ms") }}
+                </div>
+
+                <div class="field">
+                  <label for="connection_count">{{ form.connection_count.label.text }}</label>
+                  {{ form.connection_count(id="connection_count") }}
+                </div>
+
+                <div class="field">
+                  <label for="header_count">{{ form.header_count.label.text }}</label>
+                  {{ form.header_count(id="header_count") }}
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div class="field">
+                  <label for="payload_size">{{ form.payload_size.label.text }}</label>
+                  {{ form.payload_size(id="payload_size") }}
+                </div>
+
+                <div class="field">
+                  <label for="rate_limit">{{ form.rate_limit.label.text }}</label>
+                  {{ form.rate_limit(id="rate_limit") }}
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">5. Behaviour Toggles</h3>
+
+              <div class="checkbox-grid">
+                <div class="checkbox-item">
+                  {{ form.keep_alive(id="keep_alive") }}
+                  <label for="keep_alive">{{ form.keep_alive.label.text }}</label>
+                </div>
+
+                <div class="checkbox-item">
+                  {{ form.follow_redirects(id="follow_redirects") }}
+                  <label for="follow_redirects">{{ form.follow_redirects.label.text }}</label>
+                </div>
+
+                <div class="checkbox-item">
+                  {{ form.verify_tls(id="verify_tls") }}
+                  <label for="verify_tls">{{ form.verify_tls.label.text }}</label>
+                </div>
+
+                <div class="checkbox-item">
+                  {{ form.randomize_endpoints(id="randomize_endpoints") }}
+                  <label for="randomize_endpoints">{{ form.randomize_endpoints.label.text }}</label>
+                </div>
+
+                <div class="checkbox-item">
+                  {{ form.store_artifacts(id="store_artifacts") }}
+                  <label for="store_artifacts">{{ form.store_artifacts.label.text }}</label>
+                </div>
+
+                <div class="checkbox-item">
+                  {{ form.collect_telemetry(id="collect_telemetry") }}
+                  <label for="collect_telemetry">{{ form.collect_telemetry.label.text }}</label>
+                </div>
+
+                <div class="checkbox-item">
+                  {{ form.dry_run(id="dry_run") }}
+                  <label for="dry_run">{{ form.dry_run.label.text }}</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3 class="section-title">6. Custom Parameters and Notes</h3>
+
+              <div class="field">
+                <label for="custom_flags">{{ form.custom_flags.label.text }}</label>
+                {{ form.custom_flags(id="custom_flags") }}
+              </div>
+
+              <div class="field">
+                <label for="notes">{{ form.notes.label.text }}</label>
+                {{ form.notes(id="notes") }}
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button type="button" class="btn btn-secondary" id="validate-btn">
+                Validate Configuration
+              </button>
+
+              <button type="submit" class="btn btn-primary">
+                Create Test Run
+              </button>
+            </div>
+
+            <div class="status-box" id="validate-result">
+              Validation result will appear here.
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- RIGHT: INFO / LOG PANEL -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Run Overview and Live Log</h2>
+          <p class="panel-subtitle">
+            Active run information and log visibility for the testing area.
+          </p>
+        </div>
+
+        <div class="panel-body">
+          {% if active_run %}
+            <div class="summary-card">
+              <h3 class="summary-title">Current Active Run</h3>
+              <div class="kv">
+                <div>Test ID</div><div>{{ active_run.test_id }}</div>
+                <div>Area</div><div>{{ active_run.test_area }}</div>
+                <div>Name</div><div>{{ active_run.test_name }}</div>
+                <div>State</div><div>{{ active_run.execution_state }}</div>
+                <div>Start</div><div>{{ active_run.start_time if active_run.start_time else "N/A" }}</div>
+              </div>
+            </div>
+          {% else %}
+            <div class="summary-card">
+              <h3 class="summary-title">Current Active Run</h3>
+              <div class="kv">
+                <div>Status</div><div>No active run at the moment.</div>
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="summary-card">
+            <h3 class="summary-title">Live Log</h3>
+            <div class="log-box" id="log-box">No test selected yet.</div>
+            <div class="small-note">
+              This panel will later be used for live runner output, phase updates, and validation feedback.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const areaEl = document.getElementById("test_area");
+    const typeEl = document.getElementById("test_type");
+    const runnerModeEl = document.getElementById("runner_mode");
+    const specInfoEl = document.getElementById("spec-info");
+    const validateBtn = document.getElementById("validate-btn");
+    const validateResultEl = document.getElementById("validate-result");
+    const logBoxEl = document.getElementById("log-box");
+    const formEl = document.getElementById("test-run-form");
+
+    async function loadSubtypesForArea(area, preserveCurrent = false) {
+      try {
+        const currentValue = preserveCurrent ? typeEl.value : null;
+        const response = await fetch(`/tests/subtypes/${area}`);
+        if (!response.ok) {
+          typeEl.innerHTML = "";
+          specInfoEl.textContent = "No subtypes found for the selected test area.";
+          return;
+        }
+
+        const data = await response.json();
+        typeEl.innerHTML = "";
+
+        let selectedValue = null;
+
+        data.forEach(item => {
+          const option = document.createElement("option");
+          option.value = item[0];
+          option.textContent = item[1];
+          typeEl.appendChild(option);
+
+          if (currentValue && currentValue === item[0]) {
+            selectedValue = currentValue;
+          }
+        });
+
+        if (selectedValue) {
+          typeEl.value = selectedValue;
+        }
+
+        await loadSpec();
+      } catch (err) {
+        specInfoEl.textContent = "Failed to load subtype list.";
+      }
+    }
+
+    async function loadSpec() {
+      const area = areaEl.value;
+      const testType = typeEl.value;
+
+      if (!area || !testType) {
+        specInfoEl.textContent = "Select a Test Area and subtype to see its details.";
+        return;
+      }
+
+      try {
+        const response = await fetch(`/tests/spec/${area}/${testType}`);
+        if (!response.ok) {
+          specInfoEl.textContent = "Unable to load subtype specification.";
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!data.ok) {
+          specInfoEl.textContent = data.message || "Specification not available.";
+          return;
+        }
+
+        if (Array.isArray(data.runner_modes) && data.runner_modes.length > 0) {
+          runnerModeEl.innerHTML = "";
+
+          data.runner_modes.forEach(mode => {
+            const opt = document.createElement("option");
+            opt.value = mode;
+
+            if (mode === "framework") {
+              opt.textContent = "Framework-based (Locust)";
+            } else if (mode === "custom") {
+              opt.textContent = "Custom-based (Python AsyncIO)";
+            } else {
+              opt.textContent = mode;
+            }
+
+            runnerModeEl.appendChild(opt);
+          });
+
+          if (data.default_runner) {
+            runnerModeEl.value = data.default_runner;
+          }
+        }
+
+        specInfoEl.textContent =
+          `Subtype: ${data.label}\n` +
+          `Description: ${data.description || "N/A"}\n` +
+          `Allowed runner modes: ${(data.runner_modes || []).join(", ") || "N/A"}\n` +
+          `Default runner: ${data.default_runner || "N/A"}`;
+
+      } catch (err) {
+        specInfoEl.textContent = "Failed to load subtype details.";
+      }
+    }
+
+    async function validateConfig() {
+      try {
+        validateResultEl.textContent = "Validating configuration...";
+        const formData = new FormData(formEl);
+
+        const response = await fetch("/tests/validate", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          validateResultEl.textContent =
+            `Validation successful.\n\n` +
+            `Area: ${data.test_area}\n` +
+            `Subtype: ${data.test_type}\n` +
+            `Runner Mode: ${data.runner_mode}\n` +
+            `Target: ${data.target_config.protocol}://${data.target_config.host}:${data.target_config.port}\n` +
+            `Endpoints: ${(data.target_config.endpoints || []).join(", ") || "None"}`;
+
+          logBoxEl.textContent =
+            `[VALIDATION OK]\n\n` +
+            JSON.stringify(data, null, 2);
+        } else {
+          validateResultEl.textContent = data.message || "Validation failed.";
+
+          if (data.errors) {
+            validateResultEl.textContent += `\n\nErrors:\n${JSON.stringify(data.errors, null, 2)}`;
+          }
+
+          logBoxEl.textContent =
+            `[VALIDATION FAILED]\n\n` +
+            JSON.stringify(data, null, 2);
+        }
+      } catch (err) {
+        validateResultEl.textContent = "Validation request failed.";
+        logBoxEl.textContent = `[ERROR]\n\n${err}`;
+      }
+    }
+
+    areaEl.addEventListener("change", async function () {
+      await loadSubtypesForArea(this.value, false);
+    });
+
+    typeEl.addEventListener("change", async function () {
+      await loadSpec();
+    });
+
+    validateBtn.addEventListener("click", async function () {
+      await validateConfig();
+    });
+
+    window.addEventListener("load", async function () {
+      await loadSubtypesForArea(areaEl.value, true);
+    });
+  </script>
+</body>
+</html>
