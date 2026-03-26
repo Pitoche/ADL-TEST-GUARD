@@ -9,3 +9,25 @@ instance/
 *.log
 *.db
 .env
+*.pyo
+*.pyd
+# Virtual environments
+venv/
+locust-225-env/
+
+# Flask instance (DB)
+instance/
+*.db
+
+# Logs
+*.log
+app_logs/
+
+# Reports / results
+reports-area/
+test-area/**/results/
+
+# OS / editor
+.DS_Store
+.vscode/
+

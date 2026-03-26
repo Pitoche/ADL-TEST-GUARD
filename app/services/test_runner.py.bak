@@ -1,0 +1,651 @@
+import json
+import shlex
+import socket
+import subprocess
+import threading
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Dict, Optional, Tuple
+from urllib.parse import urlparse
+
+from flask import current_app
+
+from app.extensions import db
+from app.models import TestRun
+
+
+# =========================================================
+# In-memory process registry
+# =========================================================
+
+RUNNING_PROCESSES: Dict[str, Dict] = {}
+REGISTRY_LOCK = threading.Lock()
+
+
+# =========================================================
+# Paths / directories
+# =========================================================
+
+def _utcnow():
+    return datetime.now(timezone.utc)
+
+
+def _project_root() -> Path:
+    """
+    Resolve the project root from this file:
+    app/services/test_runner.py -> ../../
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+def _artifacts_root() -> Path:
+    """
+    Base folder for run artifacts.
+    """
+    root = _project_root() / "artifacts"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _run_artifact_dir(test_id: str) -> Path:
+    """
+    Per-run artifact folder.
+    """
+    run_dir = _artifacts_root() / test_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def _run_log_path(test_id: str) -> Path:
+    return _run_artifact_dir(test_id) / "runner.log"
+
+
+def _stdout_log_path(test_id: str) -> Path:
+    return _run_artifact_dir(test_id) / "stdout.log"
+
+
+def _stderr_log_path(test_id: str) -> Path:
+    return _run_artifact_dir(test_id) / "stderr.log"
+
+
+# =========================================================
+# Generic utilities
+# =========================================================
+
+def _write_runner_log(test_id: str, message: str):
+    """
+    Append a timestamped message to the runner log.
+    """
+    ts = _utcnow().isoformat()
+    log_path = _run_log_path(test_id)
+
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(f"[{ts}] {message}\n")
+
+
+def get_run_log_tail(test_id: str, lines: int = 120) -> str:
+    """
+    Return the last N lines from the run log.
+    """
+    log_path = _run_log_path(test_id)
+
+    if not log_path.exists():
+        return "No log file exists for this run yet."
+
+    with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.readlines()
+
+    return "".join(content[-lines:])
+
+
+def _load_json_field(raw_value) -> dict:
+    if not raw_value:
+        return {}
+
+    if isinstance(raw_value, dict):
+        return raw_value
+
+    try:
+        return json.loads(raw_value)
+    except Exception:
+        return {}
+
+
+def _save_run(run: TestRun):
+    db.session.add(run)
+    db.session.commit()
+
+
+def _get_run(test_id: str) -> Optional[TestRun]:
+    return db.session.get(TestRun, test_id)
+
+
+def _normalize_host(raw_host: Optional[str]) -> str:
+    """
+    Accept either:
+    - 192.168.42.8
+    - http://192.168.42.8
+    - https://example.com
+
+    Returns hostname only, without scheme, port, path, or trailing slash.
+    """
+    if not raw_host:
+        return ""
+
+    host = str(raw_host).strip()
+
+    if "://" not in host:
+        parsed = urlparse(f"http://{host}")
+    else:
+        parsed = urlparse(host)
+
+    return (parsed.hostname or "").strip()
+
+
+# =========================================================
+# Active run helpers
+# =========================================================
+
+ACTIVE_STATES = {"QUEUED", "BASELINE", "RUNNING", "STOPPING"}
+STALE_QUEUE_MINUTES = 10
+
+
+def has_active_run(exclude_test_id: Optional[str] = None) -> bool:
+    """
+    Check if there is an active run in DB.
+    """
+    return get_blocking_test(exclude_test_id=exclude_test_id) is not None
+
+
+def get_active_run(exclude_test_id: Optional[str] = None) -> Optional[TestRun]:
+    """
+    Return the first active run found in DB after stale cleanup.
+    """
+    return get_blocking_test(exclude_test_id=exclude_test_id)
+
+
+def get_blocking_test(exclude_test_id: Optional[str] = None) -> Optional[TestRun]:
+    """
+    Returns a currently blocking test, if any.
+
+    Also auto-cleans stale QUEUED runs so they do not block forever.
+    """
+    runs = (
+        db.session.query(TestRun)
+        .filter(TestRun.execution_state.in_(ACTIVE_STATES))
+        .order_by(TestRun.start_time.desc())
+        .all()
+    )
+
+    now = _utcnow()
+
+    for run in runs:
+        if exclude_test_id and run.test_id == exclude_test_id:
+            continue
+
+        if run.execution_state == "QUEUED" and run.start_time:
+            start_time = run.start_time
+
+            # Normalize naive datetime if DB stored it without tzinfo
+            if start_time.tzinfo is None:
+                start_time = start_time.replace(tzinfo=timezone.utc)
+
+            if now - start_time > timedelta(minutes=STALE_QUEUE_MINUTES):
+                run.execution_state = "FAILED"
+                run.end_time = now
+                run.failure_reason = "Stale queued test cleaned up automatically"
+                db.session.add(run)
+                db.session.commit()
+                continue
+
+        return run
+
+    return None
+
+
+# =========================================================
+# Validation
+# =========================================================
+
+def validate_target_config(target_cfg: dict, timeout_seconds: float = 3.0) -> Tuple[bool, str]:
+    """
+    Basic target validation:
+    - host present
+    - port present
+    - optional TCP reachability check
+    """
+    protocol = target_cfg.get("protocol")
+    raw_host = target_cfg.get("host")
+    host = _normalize_host(raw_host)
+    port = target_cfg.get("port")
+    endpoints = target_cfg.get("endpoints", [])
+
+    if protocol not in {"http", "https"}:
+        return False, "Protocol must be HTTP or HTTPS."
+
+    if not raw_host:
+        return False, "Host is required."
+
+    if not host:
+        return False, f"Host is invalid: {raw_host}"
+
+    if port in (None, ""):
+        return False, "Port is required."
+
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        return False, "Port must be numeric."
+
+    if not (1 <= port <= 65535):
+        return False, "Port must be between 1 and 65535."
+
+    if not endpoints:
+        return False, "At least one endpoint must be provided."
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout_seconds):
+            pass
+    except Exception as exc:
+        return False, f"Target reachability check failed: {exc}"
+
+    return True, "Validation passed."
+
+
+# =========================================================
+# Command builders
+# =========================================================
+
+def _pick_primary_endpoint(target_cfg: dict) -> str:
+    endpoints = target_cfg.get("endpoints", [])
+    if endpoints:
+        return endpoints[0]
+    return "/"
+
+
+def build_command(run: TestRun, phase: str) -> list:
+    """
+    Build the command line for a given run and phase.
+
+    This is a starter implementation. Adjust the actual paths later
+    to match your real Locust/custom runner files.
+    """
+    params = _load_json_field(run.test_parameters)
+    target = _load_json_field(run.target_config)
+
+    runner_mode = params.get("runner_mode", "framework")
+    host = _normalize_host(target.get("host"))
+    port = target.get("port")
+    protocol = target.get("protocol", "http")
+    base_url = f"{protocol}://{host}:{port}"
+
+    users = int(params.get("users", 10) or 10)
+    spawn_rate = int(params.get("spawn_rate", 1) or 1)
+    duration_seconds = int(params.get("duration_seconds", 60) or 60)
+    baseline_seconds = int(params.get("baseline_seconds", 60) or 60)
+
+    phase_duration = baseline_seconds if phase == "baseline" else duration_seconds
+
+    project_root = _project_root()
+    target_endpoint = _pick_primary_endpoint(target)
+
+    if runner_mode == "framework":
+        locust_file = project_root / "test-area" / run.test_area.lower() / "locustfile.py"
+
+        return [
+            "locust",
+            "-f",
+            str(locust_file),
+            "--host",
+            base_url,
+            "--headless",
+            "-u",
+            str(users),
+            "-r",
+            str(spawn_rate),
+            "--run-time",
+            f"{phase_duration}s",
+            "--only-summary",
+        ]
+
+    custom_runner = project_root / "test-area" / run.test_area.lower() / "runner.py"
+
+    return [
+        "python",
+        str(custom_runner),
+        "--host",
+        host,
+        "--port",
+        str(port),
+        "--protocol",
+        protocol,
+        "--endpoint",
+        target_endpoint,
+        "--phase",
+        phase,
+        "--users",
+        str(users),
+        "--duration",
+        str(phase_duration),
+    ]
+
+
+# =========================================================
+# Background execution
+# =========================================================
+
+def _launch_subprocess(test_id: str, command: list) -> subprocess.Popen:
+    """
+    Start the subprocess and direct output to files.
+    """
+    stdout_path = _stdout_log_path(test_id)
+    stderr_path = _stderr_log_path(test_id)
+
+    stdout_f = open(stdout_path, "a", encoding="utf-8")
+    stderr_f = open(stderr_path, "a", encoding="utf-8")
+
+    _write_runner_log(test_id, f"Launching command: {' '.join(shlex.quote(c) for c in command)}")
+
+    proc = subprocess.Popen(
+        command,
+        stdout=stdout_f,
+        stderr=stderr_f,
+        text=True,
+        cwd=str(_project_root()),
+    )
+
+    return proc
+
+
+def _set_registry_entry(test_id: str, **kwargs):
+    with REGISTRY_LOCK:
+        entry = RUNNING_PROCESSES.get(test_id, {})
+        entry.update(kwargs)
+        RUNNING_PROCESSES[test_id] = entry
+
+
+def _get_registry_entry(test_id: str) -> Optional[dict]:
+    with REGISTRY_LOCK:
+        return RUNNING_PROCESSES.get(test_id)
+
+
+def _remove_registry_entry(test_id: str):
+    with REGISTRY_LOCK:
+        RUNNING_PROCESSES.pop(test_id, None)
+
+
+def _run_worker(app, test_id: str):
+    """
+    Background worker:
+    - runs baseline
+    - optionally runs main/full phase
+    - updates DB states
+    """
+    with app.app_context():
+        run = _get_run(test_id)
+        if not run:
+            _write_runner_log(test_id, "Run not found in DB. Worker exiting.")
+            _remove_registry_entry(test_id)
+            return
+
+        params = _load_json_field(run.test_parameters)
+        level = params.get("level", "baseline")
+
+        try:
+            run.execution_state = "BASELINE" if level == "full" else "RUNNING"
+            run.start_time = run.start_time or _utcnow()
+            run.failure_reason = None
+            _save_run(run)
+
+            baseline_cmd = build_command(run, "baseline")
+            _write_runner_log(test_id, f"Baseline phase starting for run {run.test_name}")
+            baseline_proc = _launch_subprocess(test_id, baseline_cmd)
+            _set_registry_entry(test_id, process=baseline_proc, phase="baseline")
+
+            baseline_rc = baseline_proc.wait()
+            _write_runner_log(test_id, f"Baseline phase finished with return code {baseline_rc}")
+
+            run = _get_run(test_id)
+            if not run:
+                _write_runner_log(test_id, "Run disappeared from DB after baseline.")
+                _remove_registry_entry(test_id)
+                return
+
+            if run.execution_state == "CANCELLED":
+                _write_runner_log(test_id, "Run already cancelled after baseline.")
+                _remove_registry_entry(test_id)
+                return
+
+            if run.execution_state == "STOPPING":
+                run.execution_state = "CANCELLED"
+                run.end_time = _utcnow()
+                run.failure_reason = "Stopped by user."
+                _save_run(run)
+                _write_runner_log(test_id, "Run stopped during baseline phase.")
+                _remove_registry_entry(test_id)
+                return
+
+            if baseline_rc != 0:
+                run.execution_state = "FAILED"
+                run.end_time = _utcnow()
+                run.failure_reason = f"Baseline phase failed with return code {baseline_rc}"
+                _save_run(run)
+                _write_runner_log(test_id, run.failure_reason)
+                _remove_registry_entry(test_id)
+                return
+
+            if level != "baseline":
+                run.execution_state = "RUNNING"
+                _save_run(run)
+
+                main_cmd = build_command(run, "main")
+                _write_runner_log(test_id, f"Main phase starting for run {run.test_name}")
+                main_proc = _launch_subprocess(test_id, main_cmd)
+                _set_registry_entry(test_id, process=main_proc, phase="main")
+
+                main_rc = main_proc.wait()
+                _write_runner_log(test_id, f"Main phase finished with return code {main_rc}")
+
+                run = _get_run(test_id)
+                if not run:
+                    _write_runner_log(test_id, "Run disappeared from DB after main phase.")
+                    _remove_registry_entry(test_id)
+                    return
+
+                if run.execution_state == "CANCELLED":
+                    _write_runner_log(test_id, "Run was cancelled during or after main phase.")
+                    _remove_registry_entry(test_id)
+                    return
+
+                if run.execution_state == "STOPPING":
+                    run.execution_state = "CANCELLED"
+                    run.end_time = _utcnow()
+                    run.failure_reason = "Stopped by user."
+                    _save_run(run)
+                    _write_runner_log(test_id, "Run stopped during main phase.")
+                    _remove_registry_entry(test_id)
+                    return
+
+                if main_rc != 0:
+                    run.execution_state = "FAILED"
+                    run.end_time = _utcnow()
+                    run.failure_reason = f"Main phase failed with return code {main_rc}"
+                    _save_run(run)
+                    _write_runner_log(test_id, run.failure_reason)
+                    _remove_registry_entry(test_id)
+                    return
+
+            run.execution_state = "COMPLETED"
+            run.end_time = _utcnow()
+            run.failure_reason = None
+            _save_run(run)
+            _write_runner_log(test_id, f"Run {run.test_name} completed successfully.")
+
+        except Exception as exc:
+            run = _get_run(test_id)
+            if run:
+                run.execution_state = "FAILED"
+                run.end_time = _utcnow()
+                run.failure_reason = str(exc)
+                _save_run(run)
+
+            _write_runner_log(test_id, f"Worker exception: {exc}")
+
+        finally:
+            _remove_registry_entry(test_id)
+
+
+# =========================================================
+# Public service API
+# =========================================================
+
+def start_test_run(run: TestRun) -> Tuple[bool, str]:
+    """
+    Start a run in a background thread.
+    """
+    if not run:
+        return False, "Run object is missing."
+
+    if run.execution_state not in {"QUEUED", "FAILED", "CANCELLED"}:
+        return False, f"Run cannot be started from state {run.execution_state}."
+
+    active = get_blocking_test(exclude_test_id=run.test_id)
+    if active:
+        return False, f"Another run is already active: {active.test_name} ({active.test_id})"
+
+    params = _load_json_field(run.test_parameters)
+    target = _load_json_field(run.target_config)
+
+    ok, message = validate_target_config(target)
+    if not ok:
+        return False, message
+
+    level = params.get("level", "baseline")
+    baseline_seconds = int(params.get("baseline_seconds", 60) or 60)
+
+    if level == "full" and baseline_seconds < 60:
+        return False, "Full phase requires a mandatory baseline of at least 60 seconds."
+
+    run.start_time = _utcnow()
+    run.end_time = None
+    run.failure_reason = None
+    run.execution_state = "QUEUED"
+    _save_run(run)
+
+    _write_runner_log(run.test_id, f"Run created for start: {run.test_name}")
+    _write_runner_log(run.test_id, f"Execution level: {level}")
+    _write_runner_log(run.test_id, f"Target config: {json.dumps(target)}")
+    _write_runner_log(run.test_id, f"Parameters: {json.dumps(params)}")
+
+    app = current_app._get_current_object()
+    worker = threading.Thread(
+        target=_run_worker,
+        args=(app, run.test_id),
+        daemon=True,
+    )
+    worker.start()
+
+    _set_registry_entry(run.test_id, thread=worker, phase="queued")
+    return True, f"Run {run.test_name} has been started."
+
+
+def stop_test_run(test_id: str) -> Tuple[bool, str]:
+    """
+    Graceful stop:
+    - mark STOPPING
+    - send terminate to subprocess if present
+    """
+    run = _get_run(test_id)
+    if not run:
+        return False, "Run not found."
+
+    if run.execution_state not in {"BASELINE", "RUNNING", "STOPPING", "QUEUED"}:
+        return False, f"Run cannot be stopped from state {run.execution_state}."
+
+    entry = _get_registry_entry(test_id)
+    proc = entry.get("process") if entry else None
+
+    run.execution_state = "STOPPING"
+    _save_run(run)
+    _write_runner_log(test_id, "Stop requested by user.")
+
+    if proc and proc.poll() is None:
+        try:
+            proc.terminate()
+            _write_runner_log(test_id, "Terminate signal sent to subprocess.")
+        except Exception as exc:
+            _write_runner_log(test_id, f"Failed to terminate subprocess: {exc}")
+            return False, f"Failed to terminate subprocess: {exc}"
+
+    return True, "Stop request sent."
+
+
+def cancel_test_run(test_id: str) -> Tuple[bool, str]:
+    """
+    Hard cancel:
+    - kill subprocess if running
+    - mark DB state CANCELLED
+    """
+    run = _get_run(test_id)
+    if not run:
+        return False, "Run not found."
+
+    if run.execution_state in {"COMPLETED", "FAILED", "CANCELLED"}:
+        return False, f"Run is already in terminal state {run.execution_state}."
+
+    entry = _get_registry_entry(test_id)
+    proc = entry.get("process") if entry else None
+
+    _write_runner_log(test_id, "Cancel requested by user.")
+
+    if proc and proc.poll() is None:
+        try:
+            proc.kill()
+            _write_runner_log(test_id, "Kill signal sent to subprocess.")
+        except Exception as exc:
+            _write_runner_log(test_id, f"Failed to kill subprocess: {exc}")
+            return False, f"Failed to kill subprocess: {exc}"
+
+    run.execution_state = "CANCELLED"
+    run.end_time = _utcnow()
+    run.failure_reason = "Cancelled by user."
+    _save_run(run)
+
+    _remove_registry_entry(test_id)
+    return True, "Run cancelled."
+
+
+def mark_run_completed(test_id: str) -> Tuple[bool, str]:
+    """
+    Optional helper if you need manual completion.
+    """
+    run = _get_run(test_id)
+    if not run:
+        return False, "Run not found."
+
+    run.execution_state = "COMPLETED"
+    run.end_time = _utcnow()
+    run.failure_reason = None
+    _save_run(run)
+
+    _write_runner_log(test_id, "Run marked as completed manually.")
+    _remove_registry_entry(test_id)
+    return True, "Run marked as completed."
+
+
+def mark_run_failed(test_id: str, reason: str) -> Tuple[bool, str]:
+    """
+    Optional helper if you need manual failure.
+    """
+    run = _get_run(test_id)
+    if not run:
+        return False, "Run not found."
+
+    run.execution_state = "FAILED"
+    run.end_time = _utcnow()
+    run.failure_reason = reason or "Run failed."
+    _save_run(run)
+
+    _write_runner_log(test_id, f"Run marked as failed manually: {run.failure_reason}")
+    _remove_registry_entry(test_id)
+    return True, "Run marked as failed."

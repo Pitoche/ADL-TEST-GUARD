@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ADL-TEST-GUARD Dashboard</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --border: #d9e2ec;
+            --primary: #1f4f82;
+            --primary-dark: #163a60;
+            --accent: #2f80ed;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --success: #1f9d55;
+            --warning: #d97706;
+            --danger: #c0392b;
+            --shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            --radius: 14px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .topbar {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border-radius: var(--radius);
+            padding: 24px 28px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+        }
+
+        .topbar h1 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+        }
+
+        .topbar p {
+            margin: 0;
+            color: rgba(255,255,255,0.9);
+            font-size: 15px;
+        }
+
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .summary-card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .summary-card .label {
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .summary-card .sub {
+            margin-top: 8px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: #f9fbfd;
+        }
+
+        .panel-header h2 {
+            margin: 0;
+            font-size: 22px;
+            color: var(--primary-dark);
+        }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        .section-title {
+            margin: 0 0 12px 0;
+            font-size: 17px;
+            color: var(--primary);
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .btn {
+            display: inline-block;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e8eef6;
+            color: var(--primary-dark);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .list {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .list li {
+            margin-bottom: 10px;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-ok {
+            background: #dff5e8;
+            color: var(--success);
+        }
+
+        .status-warn {
+            background: #fff1da;
+            color: var(--warning);
+        }
+
+        .status-alert {
+            background: #fde4e1;
+            color: var(--danger);
+        }
+
+        .mini-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background: #fcfdff;
+        }
+
+        .mini-card strong {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+
+        th {
+            color: var(--primary-dark);
+            background: #f8fafc;
+        }
+
+        .mono {
+            font-family: Consolas, Monaco, monospace;
+            font-size: 13px;
+        }
+
+        .chart-placeholder {
+            height: 180px;
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            background: #fbfdff;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 1000px) {
+            .summary-row,
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <h1>ADL-TEST-GUARD Dashboard</h1>
+            <p>Application-layer attack testing, detection, reporting, and mitigation support in a controlled lab environment.</p>
+        </div>
+
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="label">Total Test Runs</div>
+                <div class="value">{{ total_runs or 0 }}</div>
+                <div class="sub">All recorded executions</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Active Test</div>
+                <div class="value">{{ active_test_name or "None" }}</div>
+                <div class="sub">Current execution status</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Detection Status</div>
+                <div class="value">
+                    {% if detection_status %}
+                        {{ detection_status }}
+                    {% else %}
+                        Monitoring
+                    {% endif %}
+                </div>
+                <div class="sub">Current detector state</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Last Alert Level</div>
+                <div class="value">{{ last_alert_level or "Low" }}</div>
+                <div class="sub">Most recent severity</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Test Area -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Test Area</h2>
+                </div>
+                <div class="panel-body">
+                    <h3 class="section-title">Test Execution</h3>
+
+                    <div class="mini-card">
+                        <strong>Available functions</strong>
+                        <div class="muted">Launch, validate, stop, and review application-layer attack scenarios.</div>
+                    </div>
+
+                    <ul class="list">
+                        <li>TA1 - Volumetric application-layer flood tests</li>
+                        <li>TA2 - Protocol abuse ( Slowloris  | SlowHTTPTest)</li>
+                        <li>TA3 - Application logic abuse scenarios</li>
+                        <li>TA4 - Endpoint and API service abuse (Curl | PIDSAT) </li>
+                        <li>TA5 - Custom Python flood generators (Asynh | Flood) </li>
+                    </ul>
+
+                    <div class="button-row">
+                        <a class="btn btn-primary" href="/tests/new">Create New Test</a>
+                        <a class="btn btn-secondary" href="/tests/runs">View Test Runs</a>
+                          <form method="post" action="{{ url_for('test_area.cleanup_stale_runs') }}">
+            <button type="submit" class="btn btn-warning"
+                onclick="return confirm('This will mark active or stuck runs as FAILED and clear the in-memory registry. Continue?');">
+                Force Stop / Clean Stale Runs
+            </button>
+        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detection Area -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Detection Area</h2>
+                </div>
+                <div class="panel-body">
+                    <h3 class="section-title">Live Detection Overview</h3>
+
+                    <div class="mini-card">
+                        <strong>Current detector state</strong>
+                        <span class="status status-ok">Listening</span>
+                        <div class="muted" style="margin-top: 8px;">Telemetry ingestion and signature correlation status can be shown here.</div>
+                    </div>
+
+                    <div class="mini-card">
+                        <strong>Latest events</strong>
+                        <div class="muted">No critical alerts in the current session.</div>
+                    </div>
+
+                    <div class="chart-placeholder">
+                        Detection timeline / live event graph placeholder
+                    </div>
+                </div>
+            </section>
+
+            <!-- Reporting and Analysis -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Reporting &amp; Analysis</h2>
+                </div>
+                <div class="panel-body">
+                    <h3 class="section-title">Reports and Results</h3>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+                                    <th>Latest Value</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Average response time</td>
+                                    <td>{{ avg_response_time or "-" }}</td>
+                                    <td><span class="status status-ok">Normal</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Error rate</td>
+                                    <td>{{ error_rate or "-" }}</td>
+                                    <td><span class="status status-warn">Watch</span></td>
+                                </tr>
+                                <tr>
+                                    <td>CPU utilisation</td>
+                                    <td>{{ cpu_usage or "-" }}</td>
+                                    <td><span class="status status-ok">Stable</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Memory utilisation</td>
+                                    <td>{{ memory_usage or "-" }}</td>
+                                    <td><span class="status status-ok">Stable</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="button-row">
+                        <a class="btn btn-secondary" href="/tests/runs">Open Results Table</a>
+                        <a class="btn btn-secondary" href="#">Export Report</a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mitigation Area -->
+            <section class="panel">
+                <div class="panel-header">
+                    <h2>Mitigation &amp; Recommendations</h2>
+                </div>
+                <div class="panel-body">
+                    <h3 class="section-title">Recommended Actions</h3>
+
+                    <ul class="list">
+                        <li>Apply endpoint-specific rate limiting where repeated abuse is observed.</li>
+                        <li>Block suspicious IPs only after controlled validation in the lab.</li>
+                        <li>Strengthen timeout and connection-handling rules for slow-request attacks.</li>
+                        <li>Review expensive application endpoints for caching, optimisation, or access control.</li>
+                        <li>Correlate backend resource spikes with traffic behaviour before recommending action.</li>
+                    </ul>
+
+                    <div class="button-row">
+                        <a class="btn btn-primary" href="#">View Mitigation Plan</a>
+                        <a class="btn btn-danger" href="#">Flag Critical Alert</a>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</body>
+</html>

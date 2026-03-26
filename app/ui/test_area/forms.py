@@ -7,13 +7,10 @@ from wtforms import (
     BooleanField,
     SubmitField,
 )
-from wtforms.validators import DataRequired, NumberRange, Optional, Length, IPAddress
+from wtforms.validators import DataRequired, NumberRange, Optional, Length
 
 
 class CreateTestRunForm(FlaskForm):
-    # =========================================================
-    # Core test selection
-    # =========================================================
     test_area = SelectField(
         "Test Area",
         choices=[
@@ -26,11 +23,13 @@ class CreateTestRunForm(FlaskForm):
         validators=[DataRequired()],
     )
 
-    # Populated dynamically from routes.py using taxonomy
+    # This field stays in the form so the taxonomy UI can use it for TA2 / TA4 / TA5,
+    # but it is optional because TA1 / TA3 do not have a visible subtype.
     test_type = SelectField(
         "Test Subtype",
         choices=[],
-        validators=[DataRequired()],
+        validators=[Optional()],
+        validate_choice=False,
     )
 
     level = SelectField(
@@ -45,19 +44,6 @@ class CreateTestRunForm(FlaskForm):
         default="baseline",
     )
 
-    runner_mode = SelectField(
-        "Runner Mode",
-        choices=[
-            ("framework", "Framework-based (Locust)"),
-            ("custom", "Custom-based (Python AsyncIO)"),
-        ],
-        validators=[DataRequired()],
-        default="framework",
-    )
-
-    # =========================================================
-    # Target configuration
-    # =========================================================
     protocol = SelectField(
         "Protocol",
         choices=[
@@ -70,19 +56,13 @@ class CreateTestRunForm(FlaskForm):
 
     host = StringField(
         "Target Host / IP",
-        validators=[
-            DataRequired(),
-            Length(max=255),
-        ],
-        render_kw={"placeholder": "e.g. 192.168.42.10 or vulnerable-app.local"},
+        validators=[DataRequired(), Length(max=255)],
+        render_kw={"placeholder": "e.g. 192.168.42.8 or vulnerable-app.local"},
     )
 
     port = IntegerField(
         "Port",
-        validators=[
-            DataRequired(),
-            NumberRange(min=1, max=65535),
-        ],
+        validators=[DataRequired(), NumberRange(min=1, max=65535)],
         default=80,
     )
 
@@ -91,19 +71,13 @@ class CreateTestRunForm(FlaskForm):
         validators=[Optional(), Length(max=5000)],
         render_kw={
             "rows": 5,
-            "placeholder": "/\n/login\n/search\n/api/v1/items"
+            "placeholder": "/\n/login\n/search\n/api/v1/items",
         },
     )
 
-    # =========================================================
-    # Run controls / execution policy
-    # =========================================================
     baseline_seconds = IntegerField(
         "Baseline Phase Duration (seconds)",
-        validators=[
-            DataRequired(),
-            NumberRange(min=10, max=3600),
-        ],
+        validators=[DataRequired(), NumberRange(min=10, max=3600)],
         default=60,
     )
 
@@ -112,19 +86,12 @@ class CreateTestRunForm(FlaskForm):
         validators=[Optional(), Length(max=2000)],
         render_kw={
             "rows": 4,
-            "placeholder": "Example:\n0s=10 users\n30s=50 users\n60s=100 users"
+            "placeholder": "Example:\n0s=10 users\n30s=50 users\n60s=100 users",
         },
     )
 
-    dry_run = BooleanField(
-        "Dry Run / Validate only",
-        default=False,
-    )
+    dry_run = BooleanField("Dry Run / Validate only", default=False)
 
-    # =========================================================
-    # Generic optional attack parameters
-    # These are useful across several test areas
-    # =========================================================
     users = IntegerField(
         "Concurrent Users / Workers",
         validators=[Optional(), NumberRange(min=1, max=100000)],
@@ -171,9 +138,6 @@ class CreateTestRunForm(FlaskForm):
         validators=[Optional(), NumberRange(min=1, max=1000000)],
     )
 
-    # =========================================================
-    # Behaviour toggles
-    # =========================================================
     keep_alive = BooleanField("Use Keep-Alive", default=True)
     follow_redirects = BooleanField("Follow Redirects", default=False)
     verify_tls = BooleanField("Verify TLS Certificate", default=False)
@@ -181,30 +145,20 @@ class CreateTestRunForm(FlaskForm):
     store_artifacts = BooleanField("Store Runner Artifacts", default=True)
     collect_telemetry = BooleanField("Collect Telemetry Samples", default=True)
 
-    # =========================================================
-    # Manual / custom command section
-    # For your requirement 1.3
-    # =========================================================
     custom_flags = TextAreaField(
         "Custom Parameters / Flags",
         validators=[Optional(), Length(max=4000)],
         render_kw={
             "rows": 4,
-            "placeholder": "--header X-Test:1\n--burst 250\n--connections 500"
+            "placeholder": "--header X-Test:1\n--burst 250\n--connections 500",
         },
     )
 
     notes = TextAreaField(
         "Run Notes",
         validators=[Optional(), Length(max=2000)],
-        render_kw={
-            "rows": 3,
-            "placeholder": "Optional notes for this run"
-        },
+        render_kw={"rows": 3, "placeholder": "Optional notes for this run"},
     )
 
-    # =========================================================
-    # Buttons
-    # =========================================================
     validate_submit = SubmitField("Validate Configuration")
     create_submit = SubmitField("Create Test Run")

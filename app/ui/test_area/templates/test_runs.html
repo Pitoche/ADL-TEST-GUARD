@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Test Runs</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 24px;
+            background: #f8f9fa;
+            color: #212529;
+        }
+
+        h2 {
+            margin: 0;
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 18px;
+            padding: 14px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 8px 10px;
+            border: 1px solid #bbb;
+            border-radius: 6px;
+            min-width: 160px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #343a40;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background: #f2f2f2;
+        }
+
+        .mono {
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .empty {
+            padding: 12px;
+            background: #e9ecef;
+            border: 1px solid #ccc;
+        }
+
+        .btn {
+            padding: 10px 14px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .btn-danger {
+            background: #c0392b;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #d97706;
+            color: white;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #d1d5db;
+            color: #111827;
+        }
+
+        .btn-danger:hover {
+            background: #a93226;
+        }
+
+        .btn-warning:hover {
+            background: #b45309;
+        }
+
+        .flash {
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        .flash-success { background: #d1fae5; }
+        .flash-info { background: #dbeafe; }
+        .flash-error { background: #fee2e2; }
+
+        .pagination {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .pagination a,
+        .pagination span {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: white;
+            text-decoration: none;
+            color: #212529;
+        }
+
+        .pagination .current {
+            background: #343a40;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/adl-theme.css') }}">
+</head>
+<body>
+
+<div class="top-bar">
+    <h2>Test Runs</h2>
+
+    <div class="button-group">
+        <a href="{{ url_for('test_area.dashboard') }}" class="btn btn-danger">
+            ← Back to Dashboard
+        </a>
+
+        <form method="post" action="{{ url_for('test_area.cleanup_stale_runs') }}">
+            <button type="submit" class="btn btn-warning"
+                onclick="return confirm('This will mark active or stuck runs as FAILED and clear the in-memory registry. Continue?');">
+                Force Stop / Clean Stale Runs
+            </button>
+        </form>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="flash flash-{{ category }}">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<form method="get" class="filter-bar">
+    <div class="filter-group">
+        <label for="test_area">Test Area</label>
+        <select name="test_area" id="test_area">
+            <option value="">All</option>
+            <option value="TA1" {% if test_area == "TA1" %}selected{% endif %}>TA1</option>
+            <option value="TA2" {% if test_area == "TA2" %}selected{% endif %}>TA2</option>
+            <option value="TA3" {% if test_area == "TA3" %}selected{% endif %}>TA3</option>
+            <option value="TA4" {% if test_area == "TA4" %}selected{% endif %}>TA4</option>
+            <option value="TA5" {% if test_area == "TA5" %}selected{% endif %}>TA5</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="start_date">Start Date From</label>
+        <input type="date" name="start_date" id="start_date" value="{{ start_date }}">
+    </div>
+
+    <div class="filter-group">
+        <label for="sort_by">Sort By</label>
+        <select name="sort_by" id="sort_by">
+            <option value="start_time" {% if sort_by == "start_time" %}selected{% endif %}>Start Time</option>
+            <option value="end_time" {% if sort_by == "end_time" %}selected{% endif %}>End Time</option>
+            <option value="test_area" {% if sort_by == "test_area" %}selected{% endif %}>Test Area</option>
+            <option value="test_name" {% if sort_by == "test_name" %}selected{% endif %}>Test Name</option>
+            <option value="execution_state" {% if sort_by == "execution_state" %}selected{% endif %}>Execution State</option>
+            <option value="test_id" {% if sort_by == "test_id" %}selected{% endif %}>ID</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="sort_dir">Direction</label>
+        <select name="sort_dir" id="sort_dir">
+            <option value="desc" {% if sort_dir == "desc" %}selected{% endif %}>Descending</option>
+            <option value="asc" {% if sort_dir == "asc" %}selected{% endif %}>Ascending</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="per_page">Rows</label>
+        <select name="per_page" id="per_page">
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+            <option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+            <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn btn-primary">Apply</button>
+    </div>
+
+    <div class="filter-group">
+        <label>&nbsp;</label>
+        <a href="{{ url_for('test_area.list_runs') }}" class="btn btn-secondary">Reset</a>
+    </div>
+</form>
+
+{% if runs %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Test Area</th>
+            <th>Test Name</th>
+            <th>Execution State</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Failure</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for run in runs %}
+        <tr>
+            <td class="mono">{{ run.test_id }}</td>
+            <td>{{ run.test_area }}</td>
+            <td>{{ run.test_name }}</td>
+            <td>{{ run.execution_state }}</td>
+            <td>{{ run.start_time or "-" }}</td>
+            <td>{{ run.end_time or "-" }}</td>
+            <td>{{ run.failure_reason or "-" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="pagination">
+    {% if pagination.has_prev %}
+        <a href="{{ url_for('test_area.list_runs',
+                            page=pagination.prev_num,
+                            per_page=per_page,
+                            sort_by=sort_by,
+                            sort_dir=sort_dir,
+                            test_area=test_area,
+                            start_date=start_date) }}">Previous</a>
+    {% endif %}
+
+    <span class="current">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+
+    {% if pagination.has_next %}
+        <a href="{{ url_for('test_area.list_runs',
+                            page=pagination.next_num,
+                            per_page=per_page,
+                            sort_by=sort_by,
+                            sort_dir=sort_dir,
+                            test_area=test_area,
+                            start_date=start_date) }}">Next</a>
+    {% endif %}
+</div>
+{% else %}
+<div class="empty">No test runs found.</div>
+{% endif %}
+
+</body>
+</html>

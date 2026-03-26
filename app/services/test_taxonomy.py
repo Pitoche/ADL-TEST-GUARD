@@ -1,34 +1,32 @@
 """
 app/services/test_taxonomy.py
 
-High-level taxonomy for the ADL-TEST-GUARD testing area.
+Corrected taxonomy for the ADL-TEST-GUARD testing area.
 
-Design goals:
-- Keep a clean mapping of Test Area -> Subtype -> metadata
-- Expose helper functions for UI dropdowns
-- Provide field definitions for form rendering / parameter extraction
-- Stay compatible with the current routes.py implementation, where:
-    TEST_TAXONOMY[area][test_type]["fields"]
-  is expected, and each field has a "type" such as "select" or "bool"
+Key rules implemented:
+- TA1 has NO user-visible subtype and uses LOCUST only
+- TA2 has subtypes:
+    - SLOWHTTPTEST_BODY
+    - SLOWHTTPTEST_HEADER
+    - SLOWLORIS
+- TA3 has NO user-visible subtype and uses LOCUST only
+- TA4 has subtypes:
+    - CURL_BURST
+    - CURL_BURST_PIDSTAT
+- TA5 has subtypes:
+    - ASYNC_FLOOD
+    - REQUESTS_FLOOD
 
-Important compatibility note:
-Your current routes.py only auto-reads fields with:
-- meta["type"] == "select"
-- meta["type"] == "bool"
-
-So this starter taxonomy mainly uses:
-- "select" for numeric / selectable values
-- "bool" for toggles
-
-Later, if you expand routes.py, you can also add support for:
-- text
-- string
-- float
-- list
+Compatibility:
+- Some existing routes.py code may still expect:
+      TEST_TAXONOMY[area][test_type]["fields"]
+- To preserve compatibility, TA1 and TA3 include an INTERNAL subtype key:
+      "__default__"
+  but helper functions hide that from the UI.
 """
 
 from copy import deepcopy
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 # ---------------------------------------------------------------------
@@ -191,14 +189,13 @@ COMMON_CONNECTION_FIELDS = {
 
 
 def _merge_fields(*field_groups: Dict) -> Dict:
-    """
-    Merge dictionaries of field definitions into a fresh dict.
-    Later groups override earlier groups if keys overlap.
-    """
     merged = {}
     for group in field_groups:
         merged.update(deepcopy(group))
     return merged
+
+
+_INTERNAL_DEFAULT_KEY = "__default__"
 
 
 # ---------------------------------------------------------------------
@@ -210,19 +207,20 @@ TEST_TAXONOMY = {
         "meta": {
             "label": "TA1 - Volumetric Application-Layer Flood",
             "description": (
-                "High-volume application-layer request floods intended to "
-                "degrade or exhaust web-facing application resources."
+                "Volumetric application-layer flooding using the standard "
+                "Locust-based profile. This test area has no user-visible subtype."
             ),
+            "has_subtypes": False,
+            "fixed_runner": "locust",
+            "ui_hide_test_type": True,
         },
 
-        "HTTP_GET_FLOOD": {
-            "label": "HTTP GET Flood",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
+        _INTERNAL_DEFAULT_KEY: {
+            "label": "Volumetric Application-Layer Flood",
+            "runner_modes": ["locust"],
+            "default_runner": "locust",
             "category": "volumetric_l7",
-            "description": (
-                "High-rate GET requests against one or more endpoints."
-            ),
+            "description": "Single TA1 volumetric flood definition.",
             "fields": _merge_fields(
                 COMMON_HTTP_FIELDS,
                 {
@@ -245,107 +243,66 @@ TEST_TAXONOMY = {
                 },
             ),
         },
-
-        "HTTP_POST_FLOOD": {
-            "label": "HTTP POST Flood",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
-            "category": "volumetric_l7",
-            "description": (
-                "High-rate POST requests, optionally with payload stress."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "payload_size": {
-                        "label": "Payload Size (bytes)",
-                        "type": "select",
-                        "choices": [
-                            (128, "128"),
-                            (256, "256"),
-                            (512, "512"),
-                            (1024, "1024"),
-                            (2048, "2048"),
-                            (4096, "4096"),
-                            (8192, "8192"),
-                            (16384, "16384"),
-                        ],
-                        "default": 512,
-                        "help": "Approximate request payload size.",
-                    },
-                    "rate_limit": {
-                        "label": "Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                            (250, "250"),
-                            (500, "500"),
-                            (1000, "1000"),
-                        ],
-                        "default": 50,
-                        "help": "Approximate request rate target.",
-                    },
-                },
-            ),
-        },
-
-        "MIXED_ENDPOINT_FLOOD": {
-            "label": "Mixed Endpoint Flood",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
-            "category": "volumetric_l7",
-            "description": (
-                "Flood across multiple endpoints to imitate broader user traffic."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "rate_limit": {
-                        "label": "Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                            (250, "250"),
-                            (500, "500"),
-                            (1000, "1000"),
-                        ],
-                        "default": 100,
-                        "help": "Approximate request rate target.",
-                    },
-                    "randomize_endpoints": {
-                        "label": "Randomize Endpoint Selection",
-                        "type": "bool",
-                        "default": True,
-                        "help": "Use random endpoint selection to vary request pattern.",
-                    },
-                },
-            ),
-        },
     },
 
     "TA2": {
         "meta": {
             "label": "TA2 - Protocol / Connection Abuse",
             "description": (
-                "Tests focused on abusive connection handling, slow headers, "
-                "slow body delivery, or prolonged socket occupancy."
+                "Tests focused on abusive connection handling, including "
+                "SlowHTTPTest body/header variants and Slowloris."
+            ),
+            "has_subtypes": True,
+            "fixed_runner": None,
+            "ui_hide_test_type": False,
+        },
+
+        "SLOWHTTPTEST_BODY": {
+            "label": "SlowHTTPTest - Body",
+            "runner_modes": ["slowhttptest"],
+            "default_runner": "slowhttptest",
+            "category": "protocol_abuse",
+            "description": "Open POST requests and drip-feed the body slowly.",
+            "fields": _merge_fields(
+                COMMON_CONNECTION_FIELDS,
+                {
+                    "payload_size": {
+                        "label": "Declared Payload Size (bytes)",
+                        "type": "select",
+                        "choices": [
+                            (1024, "1024"),
+                            (4096, "4096"),
+                            (8192, "8192"),
+                            (16384, "16384"),
+                            (32768, "32768"),
+                            (65536, "65536"),
+                        ],
+                        "default": 8192,
+                        "help": "Declared request body size to keep the server waiting.",
+                    },
+                    "think_time_ms": {
+                        "label": "Chunk Delay (ms)",
+                        "type": "select",
+                        "choices": [
+                            (250, "250"),
+                            (500, "500"),
+                            (1000, "1000"),
+                            (2000, "2000"),
+                            (5000, "5000"),
+                        ],
+                        "default": 1000,
+                        "help": "Delay between partial body chunks.",
+                    },
+                },
             ),
         },
 
-        "SLOWLORIS": {
-            "label": "Slowloris / Slow Headers",
-            "runner_modes": ["custom"],
-            "default_runner": "custom",
+        "SLOWHTTPTEST_HEADER": {
+            "label": "SlowHTTPTest - Header",
+            "runner_modes": ["slowhttptest"],
+            "default_runner": "slowhttptest",
             "category": "protocol_abuse",
-            "description": (
-                "Many long-lived connections sending partial headers slowly."
-            ),
+            "description": "Send partial HTTP headers slowly to hold server resources.",
             "fields": _merge_fields(
                 COMMON_CONNECTION_FIELDS,
                 {
@@ -387,33 +344,31 @@ TEST_TAXONOMY = {
             ),
         },
 
-        "SLOW_POST": {
-            "label": "Slow POST / Slow Body",
-            "runner_modes": ["custom"],
-            "default_runner": "custom",
+        "SLOWLORIS": {
+            "label": "Slowloris",
+            "runner_modes": ["slowloris"],
+            "default_runner": "slowloris",
             "category": "protocol_abuse",
-            "description": (
-                "Open POST requests and drip-feed the body slowly."
-            ),
+            "description": "Many long-lived connections sending partial headers slowly.",
             "fields": _merge_fields(
                 COMMON_CONNECTION_FIELDS,
                 {
-                    "payload_size": {
-                        "label": "Declared Payload Size (bytes)",
+                    "header_count": {
+                        "label": "Header Count",
                         "type": "select",
                         "choices": [
-                            (1024, "1024"),
-                            (4096, "4096"),
-                            (8192, "8192"),
-                            (16384, "16384"),
-                            (32768, "32768"),
-                            (65536, "65536"),
+                            (5, "5"),
+                            (10, "10"),
+                            (20, "20"),
+                            (30, "30"),
+                            (50, "50"),
+                            (100, "100"),
                         ],
-                        "default": 8192,
-                        "help": "Declared request body size to keep the server waiting.",
+                        "default": 20,
+                        "help": "Number of headers / header fragments to trickle.",
                     },
                     "think_time_ms": {
-                        "label": "Chunk Delay (ms)",
+                        "label": "Inter-Header Delay (ms)",
                         "type": "select",
                         "choices": [
                             (250, "250"),
@@ -421,43 +376,16 @@ TEST_TAXONOMY = {
                             (1000, "1000"),
                             (2000, "2000"),
                             (5000, "5000"),
-                        ],
-                        "default": 1000,
-                        "help": "Delay between partial body chunks.",
-                    },
-                },
-            ),
-        },
-
-        "KEEPALIVE_HOLD": {
-            "label": "Keep-Alive Connection Hold",
-            "runner_modes": ["custom"],
-            "default_runner": "custom",
-            "category": "protocol_abuse",
-            "description": (
-                "Occupy and hold many idle or semi-idle keep-alive connections."
-            ),
-            "fields": _merge_fields(
-                COMMON_CONNECTION_FIELDS,
-                {
-                    "think_time_ms": {
-                        "label": "Idle Hold Interval (ms)",
-                        "type": "select",
-                        "choices": [
-                            (500, "500"),
-                            (1000, "1000"),
-                            (2000, "2000"),
-                            (5000, "5000"),
                             (10000, "10000"),
                         ],
-                        "default": 2000,
-                        "help": "Hold interval between occasional keep-alive activity.",
+                        "default": 1000,
+                        "help": "Delay between partial header sends.",
                     },
                     "keep_alive": {
                         "label": "Use Keep-Alive",
                         "type": "bool",
                         "default": True,
-                        "help": "Keep the connection open where supported.",
+                        "help": "Attempt to keep sockets occupied for longer.",
                     },
                 },
             ),
@@ -468,19 +396,20 @@ TEST_TAXONOMY = {
         "meta": {
             "label": "TA3 - Application Logic Abuse",
             "description": (
-                "Tests focused on expensive application operations such as "
-                "CPU-heavy routes, search, reporting, or database-intensive logic."
+                "Application logic abuse focused on CPU- and database-intensive "
+                "endpoints. This test area has no user-visible subtype."
             ),
+            "has_subtypes": False,
+            "fixed_runner": "locust",
+            "ui_hide_test_type": True,
         },
 
-        "CPU_HEAVY_ENDPOINT": {
-            "label": "CPU-Heavy Endpoint Abuse",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
+        _INTERNAL_DEFAULT_KEY: {
+            "label": "Application Logic Abuse",
+            "runner_modes": ["locust"],
+            "default_runner": "locust",
             "category": "application_logic_abuse",
-            "description": (
-                "Repeated requests to endpoints that trigger expensive CPU logic."
-            ),
+            "description": "Single TA3 application logic abuse definition.",
             "fields": _merge_fields(
                 COMMON_HTTP_FIELDS,
                 {
@@ -514,93 +443,25 @@ TEST_TAXONOMY = {
                 },
             ),
         },
-
-        "DB_HEAVY_QUERY": {
-            "label": "Database-Heavy Query Abuse",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
-            "category": "application_logic_abuse",
-            "description": (
-                "Repeated access to database-intensive search/reporting endpoints."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "rate_limit": {
-                        "label": "Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (5, "5"),
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                        ],
-                        "default": 20,
-                        "help": "Approximate request rate target.",
-                    },
-                    "randomize_endpoints": {
-                        "label": "Randomize Endpoint Selection",
-                        "type": "bool",
-                        "default": True,
-                        "help": "Distribute requests across several DB-heavy endpoints.",
-                    },
-                },
-            ),
-        },
-
-        "AUTH_WORKFLOW_ABUSE": {
-            "label": "Authentication / Session Workflow Abuse",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
-            "category": "application_logic_abuse",
-            "description": (
-                "Repeated login/session-related activity to stress auth workflows."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "rate_limit": {
-                        "label": "Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (5, "5"),
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                        ],
-                        "default": 25,
-                        "help": "Approximate request rate target.",
-                    },
-                    "follow_redirects": {
-                        "label": "Follow Redirects",
-                        "type": "bool",
-                        "default": True,
-                        "help": "Useful where auth flows involve redirects.",
-                    },
-                },
-            ),
-        },
     },
 
     "TA4": {
         "meta": {
             "label": "TA4 - Endpoint / API Service Abuse",
             "description": (
-                "Misuse of exposed but weakly protected endpoints or APIs, "
-                "especially unauthenticated or low-cost-to-client services."
+                "Endpoint or service misuse with the two supported TA4 profiles."
             ),
+            "has_subtypes": True,
+            "fixed_runner": None,
+            "ui_hide_test_type": False,
         },
 
-        "UNAUTHENTICATED_API_ABUSE": {
-            "label": "Unauthenticated API Abuse",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
+        "CURL_BURST": {
+            "label": "CURL_BURST",
+            "runner_modes": ["curl"],
+            "default_runner": "curl",
             "category": "endpoint_service_abuse",
-            "description": (
-                "Repeated use of public or insufficiently protected API routes."
-            ),
+            "description": "Burst-style unauthenticated endpoint or API abuse using curl.",
             "fields": _merge_fields(
                 COMMON_HTTP_FIELDS,
                 {
@@ -622,69 +483,12 @@ TEST_TAXONOMY = {
             ),
         },
 
-        "FILE_EXPORT_ABUSE": {
-            "label": "File Export / Report Abuse",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
+        "CURL_BURST_PIDSTAT": {
+            "label": "CURL_BURST_PIDSTAT",
+            "runner_modes": ["curl_pidstat"],
+            "default_runner": "curl_pidstat",
             "category": "endpoint_service_abuse",
-            "description": (
-                "Repeated use of file export or report-generation endpoints."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "users": {
-                        "label": "Concurrent Users / Workers",
-                        "type": "select",
-                        "choices": [
-                            (1, "1"),
-                            (5, "5"),
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                        ],
-                        "default": 10,
-                        "help": "Number of concurrent workers / virtual users.",
-                    },
-                    "rate_limit": {
-                        "label": "Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (1, "1"),
-                            (5, "5"),
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                        ],
-                        "default": 10,
-                        "help": "Approximate request rate target for expensive exports.",
-                    },
-                    "payload_size": {
-                        "label": "Request Payload Size (bytes)",
-                        "type": "select",
-                        "choices": [
-                            (128, "128"),
-                            (256, "256"),
-                            (512, "512"),
-                            (1024, "1024"),
-                            (2048, "2048"),
-                        ],
-                        "default": 256,
-                        "help": "Optional body size if POST-based export APIs are used.",
-                    },
-                },
-            ),
-        },
-
-        "SEARCH_FILTER_ABUSE": {
-            "label": "Search / Filter Abuse",
-            "runner_modes": ["framework", "custom"],
-            "default_runner": "framework",
-            "category": "endpoint_service_abuse",
-            "description": (
-                "Repeated heavy search/filter combinations targeting service inefficiency."
-            ),
+            "description": "Burst-style abuse using curl with pidstat resource monitoring.",
             "fields": _merge_fields(
                 COMMON_HTTP_FIELDS,
                 {
@@ -692,20 +496,15 @@ TEST_TAXONOMY = {
                         "label": "Rate Limit (requests/sec)",
                         "type": "select",
                         "choices": [
-                            (5, "5"),
                             (10, "10"),
                             (25, "25"),
                             (50, "50"),
                             (100, "100"),
+                            (250, "250"),
+                            (500, "500"),
                         ],
-                        "default": 25,
+                        "default": 50,
                         "help": "Approximate request rate target.",
-                    },
-                    "randomize_endpoints": {
-                        "label": "Randomize Endpoint Selection",
-                        "type": "bool",
-                        "default": True,
-                        "help": "Rotate search targets / filter combinations where applicable.",
                     },
                 },
             ),
@@ -716,112 +515,20 @@ TEST_TAXONOMY = {
         "meta": {
             "label": "TA5 - Adaptive / Custom Flood",
             "description": (
-                "Adaptive or hybrid application-layer flooding intended to vary "
-                "request behavior and compare framework vs custom execution styles."
+                "Custom Python-based application-layer flooding using one of the "
+                "two supported runner families."
             ),
+            "has_subtypes": True,
+            "fixed_runner": None,
+            "ui_hide_test_type": False,
         },
 
-        "ADAPTIVE_HTTP_FLOOD": {
-            "label": "Adaptive HTTP Flood",
-            "runner_modes": ["custom", "framework"],
-            "default_runner": "custom",
+        "ASYNC_FLOOD": {
+            "label": "Async Floods",
+            "runner_modes": ["python_async"],
+            "default_runner": "python_async",
             "category": "adaptive_flood",
-            "description": (
-                "Adaptive request generation that can vary rates, endpoints, or timing."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "rate_limit": {
-                        "label": "Base Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                            (250, "250"),
-                            (500, "500"),
-                        ],
-                        "default": 50,
-                        "help": "Base request rate before adaptive behavior applies.",
-                    },
-                    "think_time_ms": {
-                        "label": "Think Time (ms)",
-                        "type": "select",
-                        "choices": [
-                            (0, "0"),
-                            (50, "50"),
-                            (100, "100"),
-                            (250, "250"),
-                            (500, "500"),
-                            (1000, "1000"),
-                        ],
-                        "default": 100,
-                        "help": "Delay used to vary timing between requests.",
-                    },
-                    "randomize_endpoints": {
-                        "label": "Randomize Endpoint Selection",
-                        "type": "bool",
-                        "default": True,
-                        "help": "Rotate among endpoints to reduce obvious regularity.",
-                    },
-                },
-            ),
-        },
-
-        "THREADED_PYTHON_FLOOD": {
-            "label": "Threaded Python Flood",
-            "runner_modes": ["custom"],
-            "default_runner": "custom",
-            "category": "adaptive_flood",
-            "description": (
-                "Thread-based custom Python runner for comparative experimentation."
-            ),
-            "fields": _merge_fields(
-                COMMON_HTTP_FIELDS,
-                {
-                    "users": {
-                        "label": "Thread Count",
-                        "type": "select",
-                        "choices": [
-                            (1, "1"),
-                            (5, "5"),
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                            (200, "200"),
-                            (300, "300"),
-                        ],
-                        "default": 25,
-                        "help": "Number of worker threads used by the custom runner.",
-                    },
-                    "rate_limit": {
-                        "label": "Rate Limit (requests/sec)",
-                        "type": "select",
-                        "choices": [
-                            (10, "10"),
-                            (25, "25"),
-                            (50, "50"),
-                            (100, "100"),
-                            (250, "250"),
-                        ],
-                        "default": 50,
-                        "help": "Approximate request rate target.",
-                    },
-                },
-            ),
-        },
-
-        "ASYNCIO_PYTHON_FLOOD": {
-            "label": "AsyncIO Python Flood",
-            "runner_modes": ["custom"],
-            "default_runner": "custom",
-            "category": "adaptive_flood",
-            "description": (
-                "AsyncIO-based custom Python runner for high-concurrency experiments."
-            ),
+            "description": "AsyncIO-based Python flooding.",
             "fields": _merge_fields(
                 COMMON_HTTP_FIELDS,
                 {
@@ -858,6 +565,49 @@ TEST_TAXONOMY = {
                 },
             ),
         },
+
+        "REQUESTS_FLOOD": {
+            "label": "Requests Floods",
+            "runner_modes": ["python_requests"],
+            "default_runner": "python_requests",
+            "category": "adaptive_flood",
+            "description": "Requests-based Python flooding.",
+            "fields": _merge_fields(
+                COMMON_HTTP_FIELDS,
+                {
+                    "users": {
+                        "label": "Thread / Worker Count",
+                        "type": "select",
+                        "choices": [
+                            (1, "1"),
+                            (5, "5"),
+                            (10, "10"),
+                            (25, "25"),
+                            (50, "50"),
+                            (100, "100"),
+                            (200, "200"),
+                            (300, "300"),
+                        ],
+                        "default": 25,
+                        "help": "Number of worker threads used by the requests-based runner.",
+                    },
+                    "rate_limit": {
+                        "label": "Rate Limit (requests/sec)",
+                        "type": "select",
+                        "choices": [
+                            (10, "10"),
+                            (25, "25"),
+                            (50, "50"),
+                            (100, "100"),
+                            (250, "250"),
+                            (500, "500"),
+                        ],
+                        "default": 50,
+                        "help": "Approximate request rate target.",
+                    },
+                },
+            ),
+        },
     },
 }
 
@@ -866,10 +616,21 @@ TEST_TAXONOMY = {
 # Helper functions
 # ---------------------------------------------------------------------
 
+def _visible_subtype_items(area: str) -> List[Tuple[str, Dict]]:
+    area_data = TEST_TAXONOMY.get(area, {})
+    items = []
+
+    for key, value in area_data.items():
+        if key == "meta":
+            continue
+        if key == _INTERNAL_DEFAULT_KEY:
+            continue
+        items.append((key, value))
+
+    return items
+
+
 def area_choices() -> List[Tuple[str, str]]:
-    """
-    Return dropdown choices for test areas.
-    """
     choices = []
     for area_code, area_data in TEST_TAXONOMY.items():
         meta = area_data.get("meta", {})
@@ -877,67 +638,70 @@ def area_choices() -> List[Tuple[str, str]]:
     return choices
 
 
+def area_has_subtypes(area: str) -> bool:
+    meta = TEST_TAXONOMY.get(area, {}).get("meta", {})
+    return bool(meta.get("has_subtypes", False))
+
+
+def internal_test_type_for_area(area: str, test_type: Optional[str] = None) -> Optional[str]:
+    """
+    Resolve the subtype key to use internally.
+
+    - For TA1 / TA3, returns '__default__'
+    - For other areas, returns the provided test_type
+    """
+    area_data = TEST_TAXONOMY.get(area, {})
+    if not area_data:
+        return None
+
+    meta = area_data.get("meta", {})
+    if not meta.get("has_subtypes", False):
+        return _INTERNAL_DEFAULT_KEY
+
+    return test_type
+
+
 def test_types_for_area(area: str) -> List[Tuple[str, str]]:
     """
     Return dropdown choices for subtypes within a given area.
 
-    Example return:
-        [("HTTP_GET_FLOOD", "HTTP GET Flood"), ...]
+    For TA1 / TA3 this correctly returns an empty list,
+    because those areas have no visible subtype.
     """
     area_data = TEST_TAXONOMY.get(area, {})
-    choices = []
+    meta = area_data.get("meta", {})
 
-    for key, value in area_data.items():
-        if key == "meta":
-            continue
-        choices.append((key, value.get("label", key)))
+    if not meta.get("has_subtypes", False):
+        return []
 
-    return choices
+    return [(key, value.get("label", key)) for key, value in _visible_subtype_items(area)]
 
 
 def get_area_meta(area: str) -> Dict:
-    """
-    Return metadata for a test area.
-    """
     return deepcopy(TEST_TAXONOMY.get(area, {}).get("meta", {}))
 
 
-def get_test_spec(area: str, test_type: str) -> Dict:
-    """
-    Return the full spec for a given area + subtype.
-    """
-    return deepcopy(TEST_TAXONOMY.get(area, {}).get(test_type, {}))
+def get_test_spec(area: str, test_type: Optional[str]) -> Dict:
+    resolved_type = internal_test_type_for_area(area, test_type)
+    return deepcopy(TEST_TAXONOMY.get(area, {}).get(resolved_type, {}))
 
 
-def get_test_fields(area: str, test_type: str) -> Dict:
-    """
-    Return only the field definitions for a given area + subtype.
-    """
-    spec = TEST_TAXONOMY.get(area, {}).get(test_type, {})
+def get_test_fields(area: str, test_type: Optional[str]) -> Dict:
+    spec = get_test_spec(area, test_type)
     return deepcopy(spec.get("fields", {}))
 
 
-def allowed_runner_modes(area: str, test_type: str) -> List[str]:
-    """
-    Return allowed runner modes for a subtype.
-    """
-    spec = TEST_TAXONOMY.get(area, {}).get(test_type, {})
+def allowed_runner_modes(area: str, test_type: Optional[str]) -> List[str]:
+    spec = get_test_spec(area, test_type)
     return list(spec.get("runner_modes", []))
 
 
-def default_runner_mode(area: str, test_type: str) -> str:
-    """
-    Return the preferred default runner for a subtype.
-    """
-    spec = TEST_TAXONOMY.get(area, {}).get(test_type, {})
+def default_runner_mode(area: str, test_type: Optional[str]) -> str:
+    spec = get_test_spec(area, test_type)
     return spec.get("default_runner", "framework")
 
 
 def all_supported_field_names() -> List[str]:
-    """
-    Return a sorted list of all field names referenced anywhere
-    in the taxonomy. Useful to compare against forms.py.
-    """
     names = set()
 
     for area_code, area_data in TEST_TAXONOMY.items():
@@ -951,15 +715,23 @@ def all_supported_field_names() -> List[str]:
 
 
 def validate_taxonomy() -> List[str]:
-    """
-    Perform lightweight internal checks and return a list of problems.
-    Empty list means the taxonomy looks structurally OK.
-    """
     problems = []
 
     for area_code, area_data in TEST_TAXONOMY.items():
-        if "meta" not in area_data:
+        meta = area_data.get("meta")
+        if not meta:
             problems.append(f"{area_code}: missing meta section")
+            continue
+
+        has_subtypes = bool(meta.get("has_subtypes", False))
+
+        if has_subtypes:
+            visible_items = _visible_subtype_items(area_code)
+            if not visible_items:
+                problems.append(f"{area_code}: marked has_subtypes=True but no visible subtypes found")
+        else:
+            if _INTERNAL_DEFAULT_KEY not in area_data:
+                problems.append(f"{area_code}: missing internal default subtype '{_INTERNAL_DEFAULT_KEY}'")
 
         for subtype, spec in area_data.items():
             if subtype == "meta":
@@ -995,8 +767,12 @@ if __name__ == "__main__":
     for item in area_choices():
         print("  ", item)
 
-    print("\nTA1 subtypes:")
+    print("\nTA1 visible subtypes:")
     for item in test_types_for_area("TA1"):
+        print("  ", item)
+
+    print("\nTA2 visible subtypes:")
+    for item in test_types_for_area("TA2"):
         print("  ", item)
 
     print("\nAll supported field names:")
