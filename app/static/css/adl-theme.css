@@ -289,3 +289,18 @@ pre,
 .info-box {
   margin-top: 30px;   /* ⬅️ adds space from above */
 }
+
+/* Yellow button */
+.btn-warning {
+  background: #facc15;   /* nice yellow */
+  color: #000;
+  border: none;
+}
+
+.btn-warning:hover {
+  background: #eab308;
+}
+
+/* Red button */
+.btn-danger {
+  background: #dc262

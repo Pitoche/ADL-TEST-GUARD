@@ -317,9 +317,9 @@
 
                     <div class="button-row">
                         <a class="btn btn-primary" href="/tests/new">Create New Test</a>
-                        <a class="btn btn-secondary" href="/tests/runs">View Test Runs</a>
+                        <a class="btn btn-warning" href="/tests/runs">View Test Runs</a>
                           <form method="post" action="{{ url_for('test_area.cleanup_stale_runs') }}">
-            <button type="submit" class="btn btn-warning"
+            <button type="submit" class="btn btn-danger"
                 onclick="return confirm('This will mark active or stuck runs as FAILED and clear the in-memory registry. Continue?');">
                 Force Stop / Clean Stale Runs
             </button>

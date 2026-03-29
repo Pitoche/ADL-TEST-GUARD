@@ -1,0 +1,46 @@
+def test_health_endpoint(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+
+    data = response.get_json()
+    assert data["status"] == "Work In Progress. By Angel De  Luis"
+
+
+def test_validate_page_loads(client):
+    response = client.get("/tests/new")
+    assert response.status_code == 200
+
+
+def test_validate_ta4_pidstat_baseline(client):
+    payload = {
+        "test_area": "TA4",
+        "test_type": "CURL_BURST_PIDSTAT",
+        "runner_mode": "curl_pidstat",
+        "protocol": "http",
+        "host": "192.168.42.8",
+        "port": "5000",
+        "endpoints": "/",
+        "level": "baseline",
+        "notes": "pytest validation check",
+        "baseline_seconds": "60",
+        "request_timeout": "10",
+        "collect_telemetry": "",
+        "custom_flags": "",
+        "dry_run": "",
+        "escalation_schedule": "",
+        "follow_redirects": "",
+        "keep_alive": "",
+        "randomize_endpoints": "",
+        "store_artifacts": "",
+    }
+
+    response = client.post(
+        "/tests/validate",
+        data=payload,
+        follow_redirects=True,
+    )
+
+    print("STATUS:", response.status_code)
+    print("BODY:", response.get_data(as_text=True))
+
+    assert response.status_code == 200

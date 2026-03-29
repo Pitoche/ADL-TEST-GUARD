@@ -164,6 +164,12 @@
             color: white;
             font-weight: bold;
         }
+
+        .notes-cell {
+            max-width: 320px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
     </style>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/adl-theme.css') }}">
@@ -211,6 +217,11 @@
     </div>
 
     <div class="filter-group">
+        <label for="subtype">Subtype</label>
+        <input type="text" name="subtype" id="subtype" value="{{ subtype }}" placeholder="e.g. SLOWLORIS or N/A">
+    </div>
+
+    <div class="filter-group">
         <label for="start_date">Start Date From</label>
         <input type="date" name="start_date" id="start_date" value="{{ start_date }}">
     </div>
@@ -253,6 +264,24 @@
         <label>&nbsp;</label>
         <a href="{{ url_for('test_area.list_runs') }}" class="btn btn-secondary">Reset</a>
     </div>
+
+    <div class="filter-group">
+    <label>&nbsp;</label>
+    <a href="{{ url_for('test_area.export_runs_csv',
+                        per_page=per_page,
+                        sort_by=sort_by,
+                        sort_dir=sort_dir,
+                        test_area=test_area,
+                        subtype=subtype,
+                        start_date=start_date) }}"
+       class="btn btn-secondary">
+        Export CSV
+    </a>
+</div>
+
+
+
+
 </form>
 
 {% if runs %}
@@ -261,8 +290,10 @@
         <tr>
             <th>ID</th>
             <th>Test Area</th>
+            <th>Subtype</th>
             <th>Test Name</th>
             <th>Execution State</th>
+            <th>Notes</th>
             <th>Start Time</th>
             <th>End Time</th>
             <th>Failure</th>
@@ -273,8 +304,10 @@
         <tr>
             <td class="mono">{{ run.test_id }}</td>
             <td>{{ run.test_area }}</td>
+            <td>{{ run.subtype or "N/A" }}</td>
             <td>{{ run.test_name }}</td>
             <td>{{ run.execution_state }}</td>
+            <td class="notes-cell">{{ run.notes or "-" }}</td>
             <td>{{ run.start_time or "-" }}</td>
             <td>{{ run.end_time or "-" }}</td>
             <td>{{ run.failure_reason or "-" }}</td>
@@ -291,6 +324,7 @@
                             sort_by=sort_by,
                             sort_dir=sort_dir,
                             test_area=test_area,
+                            subtype=subtype,
                             start_date=start_date) }}">Previous</a>
     {% endif %}
 
@@ -303,6 +337,7 @@
                             sort_by=sort_by,
                             sort_dir=sort_dir,
                             test_area=test_area,
+                            subtype=subtype,
                             start_date=start_date) }}">Next</a>
     {% endif %}
 </div>

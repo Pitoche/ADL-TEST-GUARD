@@ -1,6 +1,18 @@
 import json
 import uuid
 from datetime import datetime, timezone
+from math import ceil
+from types import SimpleNamespace
+from sqlalchemy import asc, desc
+
+
+
+import csv
+import io
+from math import ceil
+from types import SimpleNamespace
+from flask import make_response
+
 
 from flask import render_template, redirect, url_for, flash, jsonify, request
 
@@ -297,40 +309,20 @@ def validate_test():
     )
 
 
+
 from flask import request, render_template
 from sqlalchemy import asc, desc
 
-@test_area_bp.get("/runs")
-def list_runs():
-    # ----------------------------
-    # Query params
-    # ----------------------------
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
 
-    sort_by = request.args.get("sort_by", "start_time")
-    sort_dir = request.args.get("sort_dir", "desc")
-
-    test_area = request.args.get("test_area", "").strip()
-    start_date = request.args.get("start_date", "").strip()
-
-    # ----------------------------
-    # Base query
-    # ----------------------------
+def _filtered_enriched_runs(test_area="", start_date="", subtype="", sort_by="start_time", sort_dir="desc"):
     query = TestRun.query
 
-    # ----------------------------
-    # Filters
-    # ----------------------------
     if test_area:
         query = query.filter(TestRun.test_area == test_area)
 
     if start_date:
         query = query.filter(TestRun.start_time >= start_date)
 
-    # ----------------------------
-    # Sorting (DB-level, not Python)
-    # ----------------------------
     allowed_sort_columns = {
         "test_id": TestRun.test_id,
         "test_area": TestRun.test_area,
@@ -347,15 +339,233 @@ def list_runs():
     else:
         query = query.order_by(desc(sort_column))
 
-    # ----------------------------
-    # Pagination
-    # ----------------------------
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    runs = pagination.items
+    db_runs = query.all()
+    enriched_runs = []
 
-    # ----------------------------
-    # Render
-    # ----------------------------
+    for run in db_runs:
+        try:
+            params = json.loads(run.test_parameters) if run.test_parameters else {}
+        except Exception:
+            params = {}
+
+        selected_test_type = params.get("selected_test_type")
+        resolved_test_type = params.get("resolved_test_type")
+        notes = (params.get("notes") or "").strip()
+
+        if not selected_test_type and (not resolved_test_type or resolved_test_type == "__default__"):
+            subtype_display = "N/A"
+        elif resolved_test_type == "__default__":
+            subtype_display = "N/A"
+        else:
+            subtype_display = selected_test_type or resolved_test_type or "N/A"
+
+        enriched_runs.append({
+            "test_id": run.test_id,
+            "test_area": run.test_area,
+            "subtype": subtype_display,
+            "test_name": run.test_name,
+            "execution_state": run.execution_state,
+            "notes": notes if notes else "-",
+            "start_time": run.start_time,
+            "end_time": run.end_time,
+            "failure_reason": run.failure_reason or "-",
+        })
+
+    if subtype:
+        subtype_lower = subtype.lower()
+        enriched_runs = [
+            run for run in enriched_runs
+            if run["subtype"] and subtype_lower in run["subtype"].lower()
+        ]
+
+    return enriched_runs
+
+
+
+def _filtered_enriched_runs(test_area="", start_date="", subtype="", sort_by="start_time", sort_dir="desc"):
+    query = TestRun.query
+
+    if test_area:
+        query = query.filter(TestRun.test_area == test_area)
+
+    if start_date:
+        query = query.filter(TestRun.start_time >= start_date)
+
+    allowed_sort_columns = {
+        "test_id": TestRun.test_id,
+        "test_area": TestRun.test_area,
+        "test_name": TestRun.test_name,
+        "execution_state": TestRun.execution_state,
+        "start_time": TestRun.start_time,
+        "end_time": TestRun.end_time,
+    }
+
+    sort_column = allowed_sort_columns.get(sort_by, TestRun.start_time)
+
+    if sort_dir == "asc":
+        query = query.order_by(asc(sort_column))
+    else:
+        query = query.order_by(desc(sort_column))
+
+    db_runs = query.all()
+    enriched_runs = []
+
+    for run in db_runs:
+        try:
+            params = json.loads(run.test_parameters) if run.test_parameters else {}
+        except Exception:
+            params = {}
+
+        selected_test_type = params.get("selected_test_type")
+        resolved_test_type = params.get("resolved_test_type")
+        notes = (params.get("notes") or "").strip()
+
+        if not selected_test_type and (not resolved_test_type or resolved_test_type == "__default__"):
+            subtype_display = "N/A"
+        elif resolved_test_type == "__default__":
+            subtype_display = "N/A"
+        else:
+            subtype_display = selected_test_type or resolved_test_type or "N/A"
+
+        enriched_runs.append({
+            "test_id": run.test_id,
+            "test_area": run.test_area,
+            "subtype": subtype_display,
+            "test_name": run.test_name,
+            "execution_state": run.execution_state,
+            "notes": notes if notes else "-",
+            "start_time": run.start_time,
+            "end_time": run.end_time,
+            "failure_reason": run.failure_reason or "-",
+        })
+
+    if subtype:
+        subtype_lower = subtype.lower()
+        enriched_runs = [
+            run for run in enriched_runs
+            if run["subtype"] and subtype_lower in run["subtype"].lower()
+        ]
+
+    return enriched_runs
+
+
+
+
+def _filtered_enriched_runs(test_area="", start_date="", subtype="", sort_by="start_time", sort_dir="desc"):
+    query = TestRun.query
+
+    if test_area:
+        query = query.filter(TestRun.test_area == test_area)
+
+    if start_date:
+        query = query.filter(TestRun.start_time >= start_date)
+
+    allowed_sort_columns = {
+        "test_id": TestRun.test_id,
+        "test_area": TestRun.test_area,
+        "test_name": TestRun.test_name,
+        "execution_state": TestRun.execution_state,
+        "start_time": TestRun.start_time,
+        "end_time": TestRun.end_time,
+    }
+
+    sort_column = allowed_sort_columns.get(sort_by, TestRun.start_time)
+
+    if sort_dir == "asc":
+        query = query.order_by(asc(sort_column))
+    else:
+        query = query.order_by(desc(sort_column))
+
+    db_runs = query.all()
+    enriched_runs = []
+
+    for run in db_runs:
+        try:
+            params = json.loads(run.test_parameters) if run.test_parameters else {}
+        except Exception:
+            params = {}
+
+        selected_test_type = params.get("selected_test_type")
+        resolved_test_type = params.get("resolved_test_type")
+        notes = (params.get("notes") or "").strip()
+
+        if not selected_test_type and (not resolved_test_type or resolved_test_type == "__default__"):
+            subtype_display = "N/A"
+        elif resolved_test_type == "__default__":
+            subtype_display = "N/A"
+        else:
+            subtype_display = selected_test_type or resolved_test_type or "N/A"
+
+        enriched_runs.append({
+            "test_id": run.test_id,
+            "test_area": run.test_area,
+            "subtype": subtype_display,
+            "test_name": run.test_name,
+            "execution_state": run.execution_state,
+            "notes": notes if notes else "-",
+            "start_time": run.start_time,
+            "end_time": run.end_time,
+            "failure_reason": run.failure_reason or "-",
+        })
+
+    if subtype:
+        subtype_lower = subtype.lower()
+        enriched_runs = [
+            run for run in enriched_runs
+            if run["subtype"] and subtype_lower in run["subtype"].lower()
+        ]
+
+    return enriched_runs
+
+
+
+
+
+
+
+
+@test_area_bp.get("/runs")
+def list_runs():
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+
+    sort_by = request.args.get("sort_by", "start_time")
+    sort_dir = request.args.get("sort_dir", "desc")
+
+    test_area = request.args.get("test_area", "").strip()
+    start_date = request.args.get("start_date", "").strip()
+    subtype = request.args.get("subtype", "").strip()
+
+    enriched_runs = _filtered_enriched_runs(
+        test_area=test_area,
+        start_date=start_date,
+        subtype=subtype,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+    )
+
+    total = len(enriched_runs)
+    pages = max(1, ceil(total / per_page)) if per_page else 1
+
+    if page < 1:
+        page = 1
+    if page > pages:
+        page = pages
+
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    runs = enriched_runs[start_idx:end_idx]
+
+    pagination = SimpleNamespace(
+        page=page,
+        pages=pages,
+        total=total,
+        has_prev=(page > 1),
+        has_next=(page < pages),
+        prev_num=(page - 1 if page > 1 else None),
+        next_num=(page + 1 if page < pages else None),
+    )
+
     return render_template(
         "test_runs.html",
         runs=runs,
@@ -365,7 +575,65 @@ def list_runs():
         sort_dir=sort_dir,
         test_area=test_area,
         start_date=start_date,
+        subtype=subtype,
     )
+    
+
+
+
+@test_area_bp.get("/runs/export")
+def export_runs_csv():
+    sort_by = request.args.get("sort_by", "start_time")
+    sort_dir = request.args.get("sort_dir", "desc")
+    test_area = request.args.get("test_area", "").strip()
+    start_date = request.args.get("start_date", "").strip()
+    subtype = request.args.get("subtype", "").strip()
+
+    runs = _filtered_enriched_runs(
+        test_area=test_area,
+        start_date=start_date,
+        subtype=subtype,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow([
+        "Test ID",
+        "Test Area",
+        "Subtype",
+        "Test Name",
+        "Execution State",
+        "Notes",
+        "Start Time",
+        "End Time",
+        "Failure Reason",
+    ])
+
+    for run in runs:
+        writer.writerow([
+            run["test_id"],
+            run["test_area"],
+            run["subtype"],
+            run["test_name"],
+            run["execution_state"],
+            run["notes"],
+            run["start_time"] or "-",
+            run["end_time"] or "-",
+            run["failure_reason"],
+        ])
+
+    csv_data = output.getvalue()
+    output.close()
+
+    response = make_response(csv_data)
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = "attachment; filename=test_runs_export.csv"
+    return response
+
+
 
 @test_area_bp.get("/active")
 def active_run():
