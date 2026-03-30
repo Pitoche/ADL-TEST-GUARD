@@ -300,7 +300,11 @@
     <tbody>
         {% for run in runs %}
         <tr>
-            <td class="mono">{{ run.test_id }}</td>
+            <td class="mono">
+            <a href="{{ url_for('test_area.test_created', test_id=run.test_id) }}">
+                    {{ run.test_id }}
+            </a>
+            </td>
             <td>{{ run.test_area }}</td>
             <td>{{ run.subtype or "N/A" }}</td>
             <td>{{ run.execution_level or "N/A" }}</td>
