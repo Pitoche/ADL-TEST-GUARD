@@ -266,22 +266,18 @@
     </div>
 
     <div class="filter-group">
-    <label>&nbsp;</label>
-    <a href="{{ url_for('test_area.export_runs_csv',
-                        per_page=per_page,
-                        sort_by=sort_by,
-                        sort_dir=sort_dir,
-                        test_area=test_area,
-                        subtype=subtype,
-                        start_date=start_date) }}"
-       class="btn btn-secondary">
-        Export CSV
-    </a>
-</div>
-
-
-
-
+        <label>&nbsp;</label>
+        <a href="{{ url_for('test_area.export_runs_csv',
+                            per_page=per_page,
+                            sort_by=sort_by,
+                            sort_dir=sort_dir,
+                            test_area=test_area,
+                            subtype=subtype,
+                            start_date=start_date) }}"
+           class="btn btn-secondary">
+            Export CSV
+        </a>
+    </div>
 </form>
 
 {% if runs %}
@@ -291,6 +287,8 @@
             <th>ID</th>
             <th>Test Area</th>
             <th>Subtype</th>
+            <th>Execution Level</th>
+            <th>Duration (s)</th>
             <th>Test Name</th>
             <th>Execution State</th>
             <th>Notes</th>
@@ -305,6 +303,14 @@
             <td class="mono">{{ run.test_id }}</td>
             <td>{{ run.test_area }}</td>
             <td>{{ run.subtype or "N/A" }}</td>
+            <td>{{ run.execution_level or "N/A" }}</td>
+            <td>
+                {% if run.duration_seconds is not none %}
+                    {{ run.duration_seconds }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
             <td>{{ run.test_name }}</td>
             <td>{{ run.execution_state }}</td>
             <td class="notes-cell">{{ run.notes or "-" }}</td>

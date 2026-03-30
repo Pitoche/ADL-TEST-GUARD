@@ -158,6 +158,14 @@
             background: var(--danger);
             color: white;
         }
+        .btn-warning {
+            background: #facc15;  /* nice yellow */
+            color: #111827;
+        }
+
+        .btn-warning:hover {
+            background: #eab308;
+        }
 
         .list {
             margin: 0;
@@ -254,6 +262,27 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .wip {
+    position: relative;
+    overflow: hidden;
+}
+
+.wip::after {
+    content: "WORK IN PROGRESS";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-25deg);
+
+    font-size: 3rem;
+    font-weight: bold;
+    color: rgba(200, 0, 0, 0.08); /* very light red */
+
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+}
     </style>
     
 </head>
@@ -317,7 +346,10 @@
 
                     <div class="button-row">
                         <a class="btn btn-primary" href="/tests/new">Create New Test</a>
+                        
                         <a class="btn btn-warning" href="/tests/runs">View Test Runs</a>
+
+
                           <form method="post" action="{{ url_for('test_area.cleanup_stale_runs') }}">
             <button type="submit" class="btn btn-danger"
                 onclick="return confirm('This will mark active or stuck runs as FAILED and clear the in-memory registry. Continue?');">
@@ -329,9 +361,9 @@
             </section>
 
             <!-- Detection Area -->
-            <section class="panel">
+            <section class="panel wip">
                 <div class="panel-header">
-                    <h2>Detection Area</h2>
+                    <h2>Detection Area -- WIP</h2>
                 </div>
                 <div class="panel-body">
                     <h3 class="section-title">Live Detection Overview</h3>
@@ -339,24 +371,24 @@
                     <div class="mini-card">
                         <strong>Current detector state</strong>
                         <span class="status status-ok">Listening</span>
-                        <div class="muted" style="margin-top: 8px;">Telemetry ingestion and signature correlation status can be shown here.</div>
+                        <div class="muted" style="margin-top: 8px;">Telemetry will be shown here.</div>
                     </div>
 
                     <div class="mini-card">
                         <strong>Latest events</strong>
-                        <div class="muted">No critical alerts in the current session.</div>
+                        <div class="muted">Critical alerts in the current session.</div>
                     </div>
 
                     <div class="chart-placeholder">
-                        Detection timeline / live event graph placeholder
-                    </div>
+                        Detection timeline / live event 
+                                   </div>
                 </div>
             </section>
 
             <!-- Reporting and Analysis -->
-            <section class="panel">
+            <section class="panel wip">
                 <div class="panel-header">
-                    <h2>Reporting &amp; Analysis</h2>
+                    <h2>Reporting &amp; Analysis  -- WIP</h2>
                 </div>
                 <div class="panel-body">
                     <h3 class="section-title">Reports and Results</h3>
@@ -396,6 +428,7 @@
                     </div>
 
                     <div class="button-row">
+                        <a class="btn btn-warning" href="/tests/runs">View Test Runs</a>
                         <a class="btn btn-secondary" href="/tests/runs">Open Results Table</a>
                         <a class="btn btn-secondary" href="#">Export Report</a>
                     </div>
@@ -403,7 +436,7 @@
             </section>
 
             <!-- Mitigation Area -->
-            <section class="panel">
+            <section class="panel wip">
                 <div class="panel-header">
                     <h2>Mitigation &amp; Recommendations</h2>
                 </div>

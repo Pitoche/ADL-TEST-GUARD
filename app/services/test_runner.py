@@ -381,10 +381,9 @@ def _build_ta4_command(test_run: TestRun, test_type: str, params: Dict, target: 
     elif test_type != "CURL_BURST":
         raise ValueError(f"Unsupported TA4 subtype: {test_type}")
     return cmd, script.parent
-
-
 def _build_ta5_command(test_run, resolved_type, params, target):
     base_dir = _project_root() / "test-area" / "python-l7-flood"
+    scenarios_dir = base_dir / "scenarios"
 
     protocol = str(target.get("protocol", "http")).strip().lower()
     host = str(target.get("host", "")).strip()
@@ -398,33 +397,41 @@ def _build_ta5_command(test_run, resolved_type, params, target):
     url = f"{protocol}://{host}:{port}{endpoint}"
 
     level = str(params.get("level", "baseline")).strip().lower()
-    duration = int(params.get("baseline_seconds", 60))
     timeout = int(params.get("request_timeout", 10))
 
     resolved_type = str(resolved_type).strip().upper()
 
+    if level not in {"baseline", "light", "medium", "full"}:
+        raise ValueError(f"Unsupported TA5 level: {level}")
+
     if resolved_type == "ASYNC_FLOOD":
-        script_path = base_dir / "flood_async.py"
+        scenario_name = f"python_l7_async_{level}.py"
     elif resolved_type in {"REQUESTS_FLOOD", "REQUEST_FLOOD"}:
-        script_path = base_dir / "flood_requests.py"
+        scenario_name = f"python_l7_requests_{level}.py"
     else:
         raise ValueError(f"Unsupported TA5 subtype: {resolved_type}")
 
+    script_path = scenarios_dir / scenario_name
+
     if not script_path.exists():
-        raise FileNotFoundError(f"TA5 script not found: {script_path}")
+        raise FileNotFoundError(f"TA5 python flood script not found: {script_path}")
+
+    python_exec = _python_executable()
 
     cmd = [
-        "python3",
+        python_exec,
         str(script_path),
-        "--url", url,
-        "--scenario", level,
-        "--duration", str(duration),
-        "--timeout", str(timeout),
+        "--url",
+        url,
+        "--timeout",
+        str(timeout),
     ]
 
     return cmd, base_dir
 
 
+
+    
 def build_runner_command(test_run: TestRun) -> Tuple[List[str], Path, str]:
     test_area = test_run.test_area
     params = _get_test_parameters(test_run)

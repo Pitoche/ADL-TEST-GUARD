@@ -506,6 +506,7 @@ def _filtered_enriched_runs(test_area="", start_date="", subtype="", sort_by="st
             "start_time": run.start_time,
             "end_time": run.end_time,
             "failure_reason": run.failure_reason or "-",
+            "test_parameters": run.test_parameters,
         })
 
     if subtype:
@@ -524,8 +525,29 @@ def _filtered_enriched_runs(test_area="", start_date="", subtype="", sort_by="st
 
 
 
+
 @test_area_bp.get("/runs")
 def list_runs():
+    from datetime import datetime, timezone
+    import json
+
+    def _safe_parse_iso(value):
+        if not value:
+            return None
+
+        raw = str(value).strip()
+
+        try:
+            dt = datetime.fromisoformat(raw)
+        except Exception:
+            return None
+
+        # Normalize aware datetimes to naive UTC so subtraction is always valid
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
+        return dt
+
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
 
@@ -556,6 +578,23 @@ def list_runs():
     end_idx = start_idx + per_page
     runs = enriched_runs[start_idx:end_idx]
 
+    for run in runs:
+        run["execution_level"] = "N/A"
+        run["duration_seconds"] = None
+
+        try:
+            params_raw = run.get("test_parameters")
+            params = json.loads(params_raw) if params_raw else {}
+            run["execution_level"] = str(params.get("level", "N/A")).capitalize()
+        except Exception:
+            pass
+
+        start_dt = _safe_parse_iso(run.get("start_time"))
+        end_dt = _safe_parse_iso(run.get("end_time"))
+
+        if start_dt and end_dt:
+            run["duration_seconds"] = max(0, int((end_dt - start_dt).total_seconds()))
+
     pagination = SimpleNamespace(
         page=page,
         pages=pages,
@@ -577,8 +616,7 @@ def list_runs():
         start_date=start_date,
         subtype=subtype,
     )
-    
-
+ 
 
 
 @test_area_bp.get("/runs/export")
